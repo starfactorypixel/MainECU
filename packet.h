@@ -54,6 +54,12 @@ ID - Идентификатор параметра, настройки или п
 	Символом '*' указаны фрагменты данных, участвующие в подсчёте CRC16.
 */
 
+
+
+
+
+
+
 /*
 
 Примеры:
@@ -67,14 +73,6 @@ ID - Идентификатор параметра, настройки или п
 
 */
 
-
-
-/*
-
-
-
-
-*/
 
 
 
@@ -110,8 +108,9 @@ class StarPixelHighPacket
 		{
 			ERROR_NONE = 0,
 			ERROR_FORMAT = -1,
-			ERROR_CRC = -2,
-			ERROR_OVERFLOW = -3
+			ERROR_VERSION = -2,
+			ERROR_CRC = -3,
+			ERROR_OVERFLOW = -4
 		};
 		
 		StarPixelHighPacket()
@@ -400,12 +399,16 @@ class StarPixelHighPacket
 			return this->_packet[5] + 9;
 		}
 		
+		// Получить код последней ошибки.
+		int8_t GetError()
+		{
+			return this->_error;
+		}
+		
 		
 		// Флаг того, что пакет получен и проверен.
-		bool IsReceived(int8_t &error)
+		bool IsReceived()
 		{
-			error = this->_error;
-			
 			return this->_received;
 		}
 		
@@ -458,22 +461,29 @@ class StarPixelHighPacket
 		
 	private:
 		
-		// Проверяет пакет на корректность ( Стартовый + Стоповый байт, CRC16 ).
+		// Проверяет пакет на корректность ( Стартовый + Стоповый байт, Версия, CRC16 ).
 		void _Check()
 		{
 			if(this->_packet[0] == this->_start_byte && this->_packet[this->_putPacketIndex - 1] == _stop_byte)
 			{
-				uint16_t crc = this->_GetCRC16();
-				if(this->_packet[this->_putPacketIndex - 3] == highByte(crc) && this->_packet[this->_putPacketIndex - 2] == lowByte(crc))
+				if( ((this->_packet[1] >> 5) & 0x07) == this->_version )
 				{
-					this->_received = true;
+					uint16_t crc = this->_GetCRC16();
+					if(this->_packet[this->_putPacketIndex - 3] == highByte(crc) && this->_packet[this->_putPacketIndex - 2] == lowByte(crc))
+					{
+						this->_received = true;
+					}
+					else
+					{
+						this->_error = ERROR_CRC;
+					}
 				}
-				else // Ошибка CRC16.
+				else
 				{
-					this->_error = ERROR_CRC;
+					this->_error = ERROR_VERSION;
 				}
 			}
-			else // Ошибка кадра, нету стартового или стопового байта.
+			else
 			{
 				this->_error = ERROR_FORMAT;
 			}

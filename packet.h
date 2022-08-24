@@ -52,6 +52,36 @@ ID - Идентификатор параметра, настройки или п
 		[8+n]    - CRC16 L.
 		[9+n]    - Стоповый байт.
 	Символом '*' указаны фрагменты данных, участвующие в подсчёте CRC16.
+
+
+
+
+
+
+struct StarPixelHighPacket_t
+{
+	uint8_t start_byte;
+	
+	uint8_t version:3;
+	uint8_t transport:2;
+	byte reserve_1:3;
+	
+	uint8_t direction:1;
+	uint8_t urgent:1;
+	byte reserve_2:1;
+	uint8_t type:5;
+	
+	uint16_t param;
+	
+	uint8_t length;
+	
+	byte data[64];
+	
+	uint16_t crc;
+	
+	uint8_t stop_byte;
+} mypacket;
+
 */
 
 
@@ -336,6 +366,18 @@ class StarPixelHighPacket
 			if(this->_putPacketIndex < sizeof(this->_packet))
 			{
 				this->_packet[this->_putPacketIndex++] = data;
+				
+				
+				
+				for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
+				{
+					if(this->_packet[i] < 0x10) Serial.print("0");
+					Serial.print(this->_packet[i], HEX);
+					Serial.print(" ");
+				}
+				Serial.println();
+				
+				
 				
 				// Дошли и приняли байт с указанием длины данных.
 				if(this->_putPacketIndex >= 6)

@@ -1,34 +1,98 @@
 #include "packet.h"
+//#include "emulator.h"
+#include <SoftwareSerial.h>
 
+
+
+class L3Driver
+{
+	public:
+		virtual void Init(){ }
+		virtual uint8_t ReadAvailable(){ }
+		virtual byte ReadByte(){ }
+		virtual void SendByte(byte data){ }
+};
+
+/*
+	Драйвер работы с нативным uart.
+	Использует пины: Согласно Serial.
+	Скорость: 115200.
+*/
+class L3DriverRAW : public L3Driver
+{
+	public:
+		void Init()
+		{
+			Serial.begin(115200);
+			
+			return;
+		}
+		
+		uint8_t ReadAvailable() override
+		{
+			return Serial.available();
+		}
+		
+		byte ReadByte() override
+		{
+			return Serial.read();
+		}
+		
+		void SendByte(byte data) override
+		{
+			return Serial.write(data);
+		}
+};
+
+class L3DriverUART : public L3Driver
+{
+	
+};
+
+class L3DriverBluetooth : public L3Driver
+{
+	
+};
 
 
 /*
-struct StarPixelHighPacket_t
-{
-	uint8_t start_byte;
-	
-	uint8_t version:3;
-	uint8_t transport:2;
-	byte reserve_1:3;
-	
-	uint8_t direction:1;
-	uint8_t urgent:1;
-	byte reserve_2:1;
-	uint8_t type:5;
-	
-	uint16_t param;
-	
-	uint8_t length;
-	
-	byte data[64];
-	
-	uint16_t crc;
-	
-	uint8_t stop_byte;
-} mypacket;
+	Драйвер работы с виртуальным uart.
+	Использует пины: RX:2, RX:3.
+	Скорость: 19200.
 */
-
-
+class L3DriverSoftSerial : public L3Driver
+{
+	public:
+		L3DriverSoftSerial() : mySerial(2, 3)
+		{
+			return;
+		}
+		
+		void Init()
+		{
+			mySerial.begin(19200);
+			
+			return;
+		}
+		
+		uint8_t ReadAvailable() override
+		{
+			return mySerial.available();
+		}
+		
+		byte ReadByte() override
+		{
+			return mySerial.read();
+		}
+		
+		void SendByte(byte data) override
+		{
+			return mySerial.write(data);
+		}
+	
+	private:
+		SoftwareSerial mySerial;
+};
 
 
 
@@ -39,14 +103,17 @@ class L3Wrapper
 	public:
 		using packet_t = StarPixelHighPacket<64>;
 		using callback_t = bool (*)(packet_t &request, packet_t &response);
-		//using callback2_t = void (*)(uint8_t type, uint16_t param, uint8_t length, byte *data);
 		
-		L3Wrapper()
+		L3Wrapper(uint8_t transport, L3Driver &driver) : _driver(&driver)
 		{
-			_tx_packet.Transport(3);
-			_tx_packet.Direction(1);
+			this->_transport = transport;
 			
 			return;
+		}
+		
+		void Init()
+		{
+			this->_driver->Init();
 		}
 		
 		void RegCallback(callback_t callback)
@@ -54,38 +121,66 @@ class L3Wrapper
 			this->_callback = callback;
 		}
 		
+		void SetUrgent()
+		{
+			this->_urgent_data = true;
+			
+			return;
+		}
+		
 		// В будущем будет заменён на прерывание приёма байта.
 		void IncomingByte()
 		{
-			byte incomingByte = Serial.read();
-			
-			if( _rx_packet.PutPacketByte(incomingByte) == true )
+			if( this->_driver->ReadAvailable() > 0 )
 			{
-				if( _rx_packet.IsReceived() == true )
+				byte incomingByte = this->_driver->ReadByte();
+				
+				if( _rx_packet.PutPacketByte(incomingByte) == true )
 				{
-					if( this->_callback(_rx_packet, _tx_packet) == true )
+					if( _rx_packet.IsReceived() == true )
 					{
-						// Отправка ответа.
+						if( this->_callback(_rx_packet, _tx_packet) == true )
+						{
+							// Установка транспорта ( перенести в packet.h ? )
+							_tx_packet.Transport(this->_transport);
+							
+							// Флаг ответа.
+							_tx_packet.Direction(1);
+							
+							// Флаг необходимости передать срочное сообщение.
+							if(this->_urgent_data == true) _tx_packet.Urgent(1);
+							this->_urgent_data = false;
+							
+							// Отправка ответа.
+							byte data;
+							while( _tx_packet.GetPacketByte(data) == true )
+							{
+								this->_driver->SendByte(data);
+							}
+							
+							// Очистка пакета.
+							_tx_packet.Init();
+						}
+						_rx_packet.Init();
 					}
 					
-					_rx_packet.Init();
+					if(_rx_packet.GetError() < 0)
+					{
+						Serial.print("Error: ");
+						Serial.println( _rx_packet.GetError() );
+						
+						_rx_packet.Init();
+					}
 				}
-				
-				if(_rx_packet.GetError() < 0)
+				else
 				{
-					Serial.print("Error: ");
-					Serial.println( _rx_packet.GetError() );
+					Serial.println("ERROR_OVERFLOW");
 					
 					_rx_packet.Init();
+					
+					// Или метод FlushBuffer() ?
+					while(this->_driver->ReadAvailable() > 0){ this->_driver->ReadByte(); }
 				}
-			}
-			else
-			{
-				Serial.println("ERROR_OVERFLOW");
-				
-				_rx_packet.Init();
-				
-				while(Serial.available() > 0){ Serial.read(); }
 			}
 			
 			return;
@@ -95,10 +190,64 @@ class L3Wrapper
 		packet_t _rx_packet;
 		packet_t _tx_packet;
 		callback_t _callback;
+		
+		L3Driver *_driver;
+		
+		uint8_t _transport;
+		bool _urgent_data = false;
 };
 
 
-L3Wrapper Protocol;
+
+
+//L3DriverRAW driver_raw;
+L3DriverSoftSerial driver_ss;
+L3Wrapper Protocol(0, driver_ss);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+Emulator em;
+
+
+VirtualDevice<float> dev_voltage(12345, 0.0, 120.0, 2500, 74.32);
+VirtualDevice<uint8_t> dev_speed(12045, 0, 101, 750, 2);
+VirtualDevice<int32_t> dev_current(3472, -150, 150, 1000, -1124);
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -107,14 +256,24 @@ void setup()
 {
 	Serial.begin(115200);
 	
+	
+/*
+	em.RegDevice(dev_voltage);
+	em.RegDevice(dev_speed);
+	em.RegDevice(dev_current);
+	em.Processing();
+*/	
+	
+	
 	Protocol.RegCallback(OnRX);
+	Protocol.Init();
 	
 	return;
 }
 
 void loop()
 {
-	if( Serial.available() > 0 )
+	//if( Serial.available() > 0 )
 	{
 		Protocol.IncomingByte();
 	}
@@ -159,9 +318,6 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 	Serial.println();
 	Serial.println();
 }
-
-
-
 
 
 
@@ -289,11 +445,13 @@ void loop()
 
 /* ------------- TX -------------- */
 /*
+SoftwareSerial txserial(2, 3);
+
 StarPixelHighPacket<64> TXObj;
 
 void setup()
 {
-	Serial.begin(115200);
+	txserial.begin(19200);
 	
 	TXObj.Transport(3);
 	TXObj.Type(5);
@@ -311,7 +469,7 @@ void setup()
 	byte data;
 	while( TXObj.GetPacketByte(data) == true )
 	{
-		Serial.write(data);
+		txserial.write(data);
 	}
 	
 	return;
@@ -336,7 +494,7 @@ void loop()
 	byte data;
 	while( TXObj.GetPacketByte(data) == true )
 	{
-		Serial.write(data);
+		txserial.write(data);
 	}
 	
 	delay(750);

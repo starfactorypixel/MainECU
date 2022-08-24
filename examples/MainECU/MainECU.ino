@@ -1,3 +1,8 @@
+/*
+	Старый код, на всякий случай.
+	!!! НЕ ИСПОЛЬЗОВАТЬ !!!
+*/
+
 #include "packet.h"
 //#include "emulator.h"
 #include <SoftwareSerial.h>

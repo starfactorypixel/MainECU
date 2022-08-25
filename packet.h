@@ -368,7 +368,7 @@ class StarPixelHighPacket
 				this->_packet[this->_putPacketIndex++] = data;
 				
 				
-				
+				/*
 				for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
 				{
 					if(this->_packet[i] < 0x10) Serial.print("0");
@@ -376,7 +376,7 @@ class StarPixelHighPacket
 					Serial.print(" ");
 				}
 				Serial.println();
-				
+				*/
 				
 				
 				// Дошли и приняли байт с указанием длины данных.

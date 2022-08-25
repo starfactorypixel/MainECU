@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <SoftwareSerial.h>
+
 class L3Driver
 {
 	public:
@@ -21,7 +23,7 @@ class L3Driver
 class L3DriverRAW : public L3Driver
 {
 	public:
-		void Init()
+		void Init() override
 		{
 			Serial.begin(115200);
 			
@@ -40,7 +42,9 @@ class L3DriverRAW : public L3Driver
 		
 		void SendByte(byte data) override
 		{
-			return Serial.write(data);
+			Serial.write(data);
+			
+			return;
 		}
 };
 
@@ -68,7 +72,7 @@ class L3DriverSoftSerial : public L3Driver
 			return;
 		}
 		
-		void Init()
+		void Init() override
 		{
 			mySerial.begin(19200);
 			
@@ -87,7 +91,9 @@ class L3DriverSoftSerial : public L3Driver
 		
 		void SendByte(byte data) override
 		{
-			return mySerial.write(data);
+			mySerial.write(data);
+			
+			return;
 		}
 	
 	private:

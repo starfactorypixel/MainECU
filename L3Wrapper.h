@@ -57,11 +57,13 @@ class L3Wrapper
 							if(this->_urgent_data == true) _tx_packet.Urgent(1);
 							this->_urgent_data = false;
 							
+							_tx_packet.Prepare();
+							
 							// Отправка ответа.
-							byte data;
-							while( _tx_packet.GetPacketByte(data) == true )
+							byte txbyte;
+							while( _tx_packet.GetPacketByte(txbyte) == true )
 							{
-								this->_driver->SendByte(data);
+								this->_driver->SendByte(txbyte);
 							}
 							
 							// Очистка пакета.
@@ -88,6 +90,28 @@ class L3Wrapper
 					while(this->_driver->ReadAvailable() > 0){ this->_driver->ReadByte(); }
 				}
 			}
+			
+			return;
+		}
+		
+		void Send(uint8_t type, uint16_t param, byte *data, uint8_t length)
+		{
+			_tx_packet.Transport(this->_transport);
+			_tx_packet.Type(type);
+			_tx_packet.Param(param);
+			for(int8_t i = 0; i < length; ++i)
+			{
+				_tx_packet.Data1(data[i]);
+			}
+			_tx_packet.Prepare();
+			
+			byte txbyte;
+			while( _tx_packet.GetPacketByte(txbyte) == true )
+			{
+				this->_driver->SendByte(txbyte);
+			}
+			
+			_tx_packet.Init();
 			
 			return;
 		}

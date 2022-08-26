@@ -16,6 +16,7 @@ struct device_t
 	uint32_t id;		// ID параметра \ Датчика.
 	type_t type;		// Способ интерпретации полученных данных.
 	state_t state;		// Текущее состояние данных датчика.
+	uint32_t req_time;	// Время запроса параметра, используется для timeout.
 };
 
 device_t devices[] = 
@@ -42,6 +43,7 @@ void setup()
 	for(auto &device : devices)
 	{
 		device.state = STATE_IDLE;
+		device.req_time = 0;
 	}
 	
 	L3.RegCallback(OnRX);
@@ -62,29 +64,45 @@ void loop()
 	
 	if(current_time - pools_time > 1000)
 	{
-		if( devices[devices_idx].state == STATE_IDLE )
+		if( devices[devices_idx].state == STATE_IDLE || devices[devices_idx].state == STATE_TIMEOUT )
 		{
 			byte data[0];
 			L3.Send(1, devices[devices_idx].id, data, sizeof(data));
 			
 			devices[devices_idx].state = STATE_WAIT;
+			devices[devices_idx].req_time = current_time;
 			
 			Serial.println(" > Send request ..");
 		}
-		
-		if( devices[devices_idx].state == STATE_RECEIVED )
+		else
 		{
-			devices[devices_idx].state = STATE_IDLE;
-			
-			if(++devices_idx == sizeof(devices) / sizeof(device_t))
+			if( devices[devices_idx].state == STATE_RECEIVED )
 			{
-				devices_idx = 0;
-				
-				pools_time = current_time;
+				devices[devices_idx].state = STATE_IDLE;
+				++devices_idx;
+			}
+			
+			if( devices[devices_idx].state == STATE_WAIT )
+			{
+				if( current_time - devices[devices_idx].req_time > 500 )
+				{
+					devices[devices_idx].state = STATE_TIMEOUT;
+					devices[devices_idx].req_time = current_time;
+					
+					++devices_idx;
+					
+					Serial.println(" > TIMEOUT!");
+				}
 			}
 		}
 		
-		// Нужен обработчик STATE_TIMEOUT.
+		if(devices_idx == sizeof(devices) / sizeof(device_t))
+		{
+			devices_idx = 0;
+			pools_time = current_time;
+			
+			Serial.println(" - - - - - - - - - - - - - - - - - - - - - - - - - - - - ");
+		}
 	}
 	
 	return;
@@ -156,7 +174,6 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 		}
 	}
 	
-	Serial.println();
 	Serial.println();
 	
 	return false;

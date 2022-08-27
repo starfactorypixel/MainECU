@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <SoftwareSerial.h>
+// #include <SoftwareSerial.h>
 #include <BluetoothSerial.h>
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
@@ -67,8 +67,8 @@ class L3DriverBluetooth : public L3Driver
 			char btDevName[20];
 			SerialBT.begin(" "); // инициализируем BT с пустой строкой вместо имени
 			const uint8_t* mac = esp_bt_dev_get_address(); //вытаскиваем mac адрес BT
-			sprintf(btName, "StarPixel %02X:%02X:%02X", mac[3], mac[4], mac[5]); //последние 3 байта адреса пишем в имя BT
-			esp_bt_dev_set_device_name(btName); //переименовываем BT
+			sprintf(btDevName, "StarPixel %02X:%02X:%02X", mac[3], mac[4], mac[5]); //последние 3 байта адреса пишем в имя BT
+			esp_bt_dev_set_device_name(btDevName); //переименовываем BT
 			return;
 		}
 		

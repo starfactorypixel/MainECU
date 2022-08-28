@@ -1,5 +1,5 @@
 /*
-
+	Обёртка пакета L3.
 */
 
 #pragma once
@@ -7,7 +7,7 @@
 class L3Wrapper
 {
 	public:
-		using packet_t = StarPixelHighPacket<64>;
+		using packet_t = L3Packet<64>;
 		using callback_t = bool (*)(packet_t &request, packet_t &response);
 		
 		L3Wrapper(uint8_t transport, L3Driver &driver) : _driver(&driver)
@@ -47,7 +47,7 @@ class L3Wrapper
 					{
 						if( this->_callback(_rx_packet, _tx_packet) == true )
 						{
-							// Установка транспорта ( перенести в packet.h ? )
+							// Установка транспорта ( перенести в L3Packet.h ? )
 							_tx_packet.Transport(this->_transport);
 							
 							// Флаг ответа.

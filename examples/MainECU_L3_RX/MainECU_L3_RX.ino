@@ -3,10 +3,10 @@
 	В частном случае это MainECU.
 */
 
-#include <SoftwareSerial.h>
-#include "packet.h"
-#include "L3Driver.h"
-#include "L3Wrapper.h"
+#include "Core.h"
+#include "L3/L3Packet.h"
+#include "L3/L3Driver.h"
+#include "L3/L3Wrapper.h"
 
 
 //L3DriverRAW driver_raw;

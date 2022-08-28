@@ -68,7 +68,7 @@ class VirtualDevice : public VirtualDeviceInterface
 					case ALG_MINFADEMAX:
 					{
 						T val_to = (config.direction) ? config.max : config.min;
-						if( abs(config.value - val_to) / config.step > 0 )
+						if( abs((long)(config.value - val_to)) / config.step > 0 )
 						{
 							if(config.value > val_to){ config.value -= config.step; }
 							else{ config.value += config.step; }

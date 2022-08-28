@@ -4,15 +4,19 @@
 	SMD - COM5
 */
 
-#include <SoftwareSerial.h>
-#include "packet.h"
-#include "L3Driver.h"
-#include "L3Wrapper.h"
+#include "Core.h"
+#include "L3/L3Packet.h"
+#include "L3/L3Driver.h"
+#include "L3/L3Wrapper.h"
 #include "emulator.h"
 
 
-//L3DriverRAW driver_raw;
-L3DriverSoftSerial driver_ss;
+#ifdef ARDUINO_ARCH_ESP32
+ L3DriverBluetooth driver_ss;
+#elif ARDUINO_ARCH_AVR
+ L3DriverSoftSerial driver_ss;
+#endif
+
 L3Wrapper L3(0, driver_ss);
 
 

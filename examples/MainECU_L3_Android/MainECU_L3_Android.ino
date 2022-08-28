@@ -4,10 +4,10 @@
 	DIP - COM4
 */
 
-#include <SoftwareSerial.h>
-#include "packet.h"
-#include "L3Driver.h"
-#include "L3Wrapper.h"
+#include "Core.h"
+#include "L3/L3Packet.h"
+#include "L3/L3Driver.h"
+#include "L3/L3Wrapper.h"
 
 enum type_t { TYPE_NONE, TYPE_BOOL, TYPE_UINT8, TYPE_UINT16, TYPE_UINT32, TYPE_INT8, TYPE_INT16, TYPE_INT32 };
 enum state_t { STATE_IDLE, STATE_WAIT, STATE_RECEIVED, STATE_TIMEOUT };
@@ -30,8 +30,12 @@ device_t devices[] =
 uint8_t devices_idx = 0;
 
 
-//L3DriverRAW driver_raw;
-L3DriverSoftSerial driver_ss;
+#ifdef ARDUINO_ARCH_ESP32
+ L3DriverBluetooth driver_ss;
+#elif ARDUINO_ARCH_AVR
+ L3DriverSoftSerial driver_ss;
+#endif
+
 L3Wrapper L3(0, driver_ss);
 
 

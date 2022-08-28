@@ -4,11 +4,12 @@
 */
 
 #include <SoftwareSerial.h>
-#include "packet.h"
+#include "Core.h"
+#include "L3/L3Packet.h"
 
 SoftwareSerial txserial(2, 3);
 
-StarPixelHighPacket<64> TXObj;
+L3Packet<64> TXObj;
 
 void setup()
 {

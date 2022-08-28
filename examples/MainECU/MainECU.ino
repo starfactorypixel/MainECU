@@ -106,7 +106,7 @@ class L3DriverSoftSerial : public L3Driver
 class L3Wrapper
 {
 	public:
-		using packet_t = StarPixelHighPacket<64>;
+		using packet_t = L3Packet<64>;
 		using callback_t = bool (*)(packet_t &request, packet_t &response);
 		
 		L3Wrapper(uint8_t transport, L3Driver &driver) : _driver(&driver)
@@ -342,7 +342,7 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 
 /* ------------- RX -------------- */
 /*
-StarPixelHighPacket<64> RXObj;
+L3Packet<64> RXObj;
 
 void setup()
 {
@@ -452,7 +452,7 @@ void loop()
 /*
 SoftwareSerial txserial(2, 3);
 
-StarPixelHighPacket<64> TXObj;
+L3Packet<64> TXObj;
 
 void setup()
 {

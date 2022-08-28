@@ -1,64 +1,38 @@
 /*
- *	packet.h
- *	Class data packet.
- *
- *	@author		Nikolai Tikhonov aka Dragon_Knight <dubki4132@mail.ru>, https://vk.com/globalzone_edev
- *	@licenses	GPL-3 https://opensource.org/licenses/GPL-3.0
- *	@repo		https://github.com/Dragon-Knight/DragonNET
- */
-
-
-
-/*
-
-1. Я предлагаю сделать один протокол на UART, RS485, Bluetooth. Ну потому что какой смысл делать разные протоколы для одной цели?
-2. Т.к. у нас идея приборки и бортового компьютера превратить в опции, то нужно дать пользователю просто протокол, но в широким спектром возможностей, а так-же с облегчённым алгоритмом работы с ним.
-   Поэтому предлагаю передать тип данных, чтобы простым switch-case можно было восстановить исходный тип.
-
-Версия протокола - В случае обновления версии протокола у нас останется возможность как поддерживать старые, так и сообщить программе с какой версией работать.
-Тип транспорта - В случае использования разного транспорта возможно потребуются доп. обработки, например задержки.
-Флаг направления - Нужен как для отладки, чтобы на анализаторе видеть источник пакета, так и в работе как доп. бит идентификации типа запроса.
-Флаг срочных данных - Данный флаг выставляет Main ECU при любом ответе если у него есть что передать в устройство не относящиеся к текущей посылке. https://t.me/c/1747672622/1188
-Тип запроса - Запрос одного параметра, Запрос параметра из CAN, Обновление прошивки устройства, Команда без ответа, Ошибка ...
-ID - Идентификатор параметра, настройки или пусть до устройства обновления прошивки. Возможно, если будет использоваться CAN версии B, где идентификаторы 29 бит это поле должно стать 32 битным.
-
+	Пакет L3.
 */
 
 /*
-	Пакет:
-		[0]      - Стартовый байт.
-		[*1]     - Конфиг байт 1.
-		  |- [7]   - \
-		  |- [6]   -  3 бита, Версия протокола. Отладочная версия 000, первый релиз 001.
-		  |- [5]   - /
-		  |- [4]   - \
-		  |- [3]   -  2 бита, Тип транспорта. 00 - Raw, 01 - RS485, 10 - Bluetooth, 11 - ...
-		  |- [2]   - Резерв.
-		  |- [1]   - Резерв.
-		  |- [0]   - Резерв.
-		[*2]     - Конфиг байт 2.
-		  |- [7]   - Флаг направления: 0 - Запрос (Устройство -> Main ECU), 1 - Ответ (Main ECU -> Устройство).
-		  |- [6]   - Флаг срочных данных.
-		  |- [5]   - Резерв.
-		  |- [4]   - \
-		  |- [3]   -  \
-		  |- [2]   -  5 бит, Тип запроса.
-		  |- [1]   -  /
-		  |- [0]   - /
-		[*3,4]   - 2 байта, ID запрашиваемого \ настраиваемого параметра.
-		[*5]     - Длинна данных.
-		[*6+n]   - Данные.
-		[7+n]    - CRC16 H.
-		[8+n]    - CRC16 L.
-		[9+n]    - Стоповый байт.
-	Символом '*' указаны фрагменты данных, участвующие в подсчёте CRC16.
 
+Пакет:
+	[0]      - Стартовый байт.
+	[*1]     - Конфиг байт 1.
+	  |- [7]   - \
+	  |- [6]   -  3 бита, Версия протокола. Отладочная версия 000, первый релиз 001.
+	  |- [5]   - /
+	  |- [4]   - \
+	  |- [3]   -  2 бита, Тип транспорта. 00 - Raw, 01 - RS485, 10 - Bluetooth, 11 - ...
+	  |- [2]   - Резерв.
+	  |- [1]   - Резерв.
+	  |- [0]   - Резерв.
+	[*2]     - Конфиг байт 2.
+	  |- [7]   - Флаг направления: 0 - Запрос (Устройство -> Main ECU), 1 - Ответ (Main ECU -> Устройство).
+	  |- [6]   - Флаг срочных данных.
+	  |- [5]   - Резерв.
+	  |- [4]   - \
+	  |- [3]   -  \
+	  |- [2]   -  5 бит, Тип запроса.
+	  |- [1]   -  /
+	  |- [0]   - /
+	[*3,4]   - 2 байта, ID запрашиваемого \ настраиваемого параметра.
+	[*5]     - Длинна данных.
+	[*6+n]   - Данные.
+	[7+n]    - CRC16 H.
+	[8+n]    - CRC16 L.
+	[9+n]    - Стоповый байт.
+Символом '*' указаны фрагменты данных, участвующие в подсчёте CRC16.
 
-
-
-
-
-struct StarPixelHighPacket_t
+struct L3Packet_t
 {
 	uint8_t start_byte;
 	
@@ -84,28 +58,6 @@ struct StarPixelHighPacket_t
 
 */
 
-
-
-
-
-
-
-/*
-
-Примеры:
-	Запрос \ Ответ текущие скорости, uint8_t (0x028A)
-	Запрос:  [0x3C][0b00010000][0b00000001][0x028A][0x00]         [][CRC16][0x3E]
-	Ответ:   [0x3C][0b00010000][0b00100001][0x028A][0x01][0x1F][CRC16][0x3E]
-	
-	Запрос \ Ответ температуры двигателя 2, float (0x05D)
-	Запрос:  [0x3C][0b00010000][0b00000010][0x05D][0x00]          [][CRC16][0x3E]
-	Ответ:   [0x3C][0b00010000][0b00100010][0x05D][0x04][0x4229bf7d][CRC16][0x3E]
-
-*/
-
-
-
-
 #pragma once
 
 #if defined(ARDUINO_ARCH_AVR)
@@ -126,11 +78,11 @@ struct StarPixelHighPacket_t
 #endif
 
 template <uint8_t _maxDataLength>
-class StarPixelHighPacket
+class L3Packet
 {
-	const byte _version = 0b010;	// Версия протокола, 3 бита.
-	const byte _start_byte = 0x3C;	// Стартовый байт (знак '<').
-	const byte _stop_byte = 0x3E;	// Стоповый байт (знак '>').
+	const uint8_t _version = 0b010;		// Версия протокола, 3 бита.
+	const uint8_t _start_byte = 0x3C;	// Стартовый байт (знак '<').
+	const uint8_t _stop_byte = 0x3E;		// Стоповый байт (знак '>').
 	
 	public:
 		
@@ -143,25 +95,25 @@ class StarPixelHighPacket
 			ERROR_OVERFLOW = -4
 		};
 		
-		StarPixelHighPacket()
+		L3Packet()
 		{
 			this->Init();
 			
 			return;
 		}
 		
-		//~StarPixelHighPacket() = default;
+		//~L3Packet() = default;
 		
 		// Copy & Move constructors.
-		//StarPixelHighPacket(const StarPixelHighPacket &) = default;
-		//StarPixelHighPacket(StarPixelHighPacket &&) = default;
+		//L3Packet(const L3Packet &) = default;
+		//L3Packet(L3Packet &&) = default;
 		
 		// Copy & Move assigments.
-		//StarPixelHighPacket& operator=(const StarPixelHighPacket &) = default;
-		//StarPixelHighPacket& operator=(StarPixelHighPacket &&) = default;
+		//L3Packet& operator=(const L3Packet &) = default;
+		//L3Packet& operator=(L3Packet &&) = default;
 		
 		// Copy assigments.
-		//StarPixelHighPacket& operator=(const StarPixelHighPacket &parent)
+		//L3Packet& operator=(const L3Packet &parent)
 		//{
 		//	for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
 		//	{
@@ -267,7 +219,7 @@ class StarPixelHighPacket
 		
 		
 		// Вставить данные, по-байтно.
-		bool Data1(byte data)
+		bool Data1(uint8_t data)
 		{
 			bool result = false;
 			
@@ -283,7 +235,7 @@ class StarPixelHighPacket
 		}
 		
 		// Получить данные, по-байтно.
-		bool GetData(byte &data)
+		bool GetData(uint8_t &data)
 		{
 			bool result = false;
 			
@@ -299,7 +251,7 @@ class StarPixelHighPacket
 		
 		
 		// Вставить данные, массивом.
-		bool Data2(byte *data, uint8_t length)
+		bool Data2(uint8_t *data, uint8_t length)
 		{
 			bool result = false;
 			
@@ -318,7 +270,7 @@ class StarPixelHighPacket
 		}
 		
 		// Получить данные, массивом.
-		void Data2(byte *data)
+		void Data2(uint8_t *data)
 		{
 			// ...
 			
@@ -339,9 +291,9 @@ class StarPixelHighPacket
 		
 		
 		// Получить пакет, по-байтно, при передачи пакета.
-		// 	byte &packet - Ссылка на байт, который нужно передать;
+		// 	uint8_t &packet - Ссылка на байт, который нужно передать;
 		// 	result - true если байт нужно передавать;
-		bool GetPacketByte(byte &packet)
+		bool GetPacketByte(uint8_t &packet)
 		{
 			bool result = false;
 			
@@ -357,9 +309,9 @@ class StarPixelHighPacket
 		
 		
 		// Вставить пакет, по-байтно, при приёме пакета.
-		// 	byte data - Байт данных;
+		// 	uint8_t data - Байт данных;
 		// 	return - true в случае успеха;
-		bool PutPacketByte(byte data)
+		bool PutPacketByte(uint8_t data)
 		{
 			bool result = false;
 			
@@ -548,7 +500,7 @@ class StarPixelHighPacket
 		}
 		
 		
-		byte _packet[_maxDataLength + 9];	// Массив пакета данных.
+		uint8_t _packet[_maxDataLength + 9];	// Массив пакета данных.
 		error_t _error;					// Ошибка.
 		
 		uint8_t _putDataIndex;			// Индекс вставки данных в массив.

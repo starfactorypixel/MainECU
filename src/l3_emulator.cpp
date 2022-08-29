@@ -4,14 +4,20 @@
 	SMD - COM5
 */
 
+
 #include <stdint.h>
 #include <L3Packet.h>
 #include <L3Driver.h>
+
+#define DEBUG true				// Громкий режим, для отладки через OTG - false.
+#define Serial if(DEBUG)Serial
+
 #include <L3Wrapper.h>
 #include <Emulator.h>
 
 #ifdef ARDUINO_ARCH_ESP32
- L3DriverBluetooth driver_ss;
+ L3DriverBluetooth driver_ss;	// Для соединения по BT.
+ //L3DriverSerial driver_ss;	// Для соединения по Serial.
 #elif ARDUINO_ARCH_AVR
  L3DriverSoftSerial driver_ss;
 #endif

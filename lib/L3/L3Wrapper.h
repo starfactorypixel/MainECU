@@ -8,7 +8,8 @@ class L3Wrapper
 {
 	public:
 		using packet_t = L3Packet<64>;
-		using callback_t = bool (*)(packet_t &request, packet_t &response);
+		using callback_event_t = bool (*)(packet_t &request, packet_t &response);
+		using callback_error_t = void (*)(packet_t &request, int8_t code);
 		
 		L3Wrapper(uint8_t transport, L3Driver &driver) : _driver(&driver)
 		{
@@ -22,9 +23,10 @@ class L3Wrapper
 			this->_driver->Init();
 		}
 		
-		void RegCallback(callback_t callback)
+		void RegCallback(callback_event_t event, callback_error_t error = nullptr)
 		{
-			this->_callback = callback;
+			this->_callback_event = event;
+			this->_callback_error = error;
 		}
 		
 		void SetUrgent()
@@ -45,7 +47,7 @@ class L3Wrapper
 				{
 					if( _rx_packet.IsReceived() == true )
 					{
-						if( this->_callback(_rx_packet, _tx_packet) == true )
+						if( this->_callback_event(_rx_packet, _tx_packet) == true )
 						{
 							// Установка транспорта ( перенести в L3Packet.h ? )
 							_tx_packet.Transport(this->_transport);
@@ -74,16 +76,13 @@ class L3Wrapper
 					
 					if(_rx_packet.GetError() < 0)
 					{
-						Serial.print("Error: ");
-						Serial.println( _rx_packet.GetError() );
-						
+						this->_callback_error(_rx_packet, _rx_packet.GetError());
 						_rx_packet.Init();
 					}
 				}
 				else
 				{
-					Serial.println("ERROR_OVERFLOW");
-					
+					this->_callback_error(_rx_packet, _rx_packet.GetError());
 					_rx_packet.Init();
 					
 					// Или метод FlushBuffer() ?
@@ -119,7 +118,8 @@ class L3Wrapper
 	private:
 		packet_t _rx_packet;
 		packet_t _tx_packet;
-		callback_t _callback;
+		callback_event_t _callback_event;
+		callback_error_t _callback_error;
 		
 		L3Driver *_driver;
 		

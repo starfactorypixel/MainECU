@@ -82,7 +82,7 @@ struct L3Packet_t
 	}
 #endif
 
-template <uint8_t _maxDataLength>
+template <uint8_t _maxDataLength = 64>
 class L3Packet
 {
 	const uint8_t _version = 0b010;		// Версия протокола, 3 бита.
@@ -319,6 +319,8 @@ class L3Packet
 		bool PutPacketByte(uint8_t data)
 		{
 			bool result = false;
+
+			// Идея: Проверять тут время последней вставки байта и если оно выше чем Х, то считаем что пакет бытий и у нас ERROR_TIMEOUT.
 			
 			if(this->_putPacketIndex < sizeof(this->_packet))
 			{

@@ -35,13 +35,14 @@ VirtualDevice<int32_t>  dev_current(41177,		-150000,	150000,		1000,		250,		-1124
 VirtualDevice<bool>       dev_light(23673,		0,			1,			5000,		1,			0,			VirtualDevice<bool>::ALG_MINMAX);
 
 bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
+void OnError(L3Wrapper::packet_t &packet, int8_t code);
 
 void setup()
 {
 	Serial.begin(115200);
 	Serial.println("Start");
 	
-	L3.RegCallback(OnRX);
+	L3.RegCallback(OnRX, OnError);
 	L3.Init();
 	
 	em.RegDevice(dev_voltage);
@@ -131,4 +132,50 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 	Serial.println();
 	
 	return true;
+}
+
+void OnError(L3Wrapper::packet_t &packet, int8_t code)
+{
+	switch (code)
+	{
+		case L3Packet<>::ERROR_FORMAT:
+		{
+			Serial.println("ERROR_FORMAT");
+			
+			break;
+		}
+		case L3Packet<>::ERROR_VERSION:
+		{
+			Serial.println("ERROR_VERSION");
+			
+			break;
+		}
+		case L3Packet<>::ERROR_CRC:
+		{
+			Serial.println("ERROR_CRC");
+			
+			break;
+		}
+		case L3Packet<>::ERROR_OVERFLOW:
+		{
+			Serial.println("ERROR_OVERFLOW");
+			
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
+	
+	Serial.print("Packet: '");
+	byte rxbyte;
+	while( packet.GetPacketByte(rxbyte) == true )
+	{
+		if(rxbyte < 0x10) Serial.print("0");
+		Serial.print(rxbyte, HEX);
+	}
+	Serial.println("'");
+	
+	return;
 }

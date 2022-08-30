@@ -284,7 +284,10 @@ class L3Packet
 		
 		
 		
-		
+		uint8_t *GetDataPtr()
+		{
+			return &this->_packet[6];
+		}
 		
 		
 		
@@ -362,7 +365,10 @@ class L3Packet
 		
 		
 
-		
+		uint8_t *GetPacketPtr()
+		{
+			return &this->_packet[0];
+		}
 		
 		
 		

@@ -67,6 +67,7 @@ void loop()
 
 bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 {
+	/*
 	byte data_arr[ request.GetDataLength() ];
 	for(uint8_t i = 0; i < request.GetDataLength(); ++i)
 	{
@@ -74,6 +75,21 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 		request.GetData(data);
 		data_arr[i] = data;
 	}
+	*/
+
+	uint8_t *packet_arr = request.GetPacketPtr();
+	uint8_t *data_arr = request.GetDataPtr();
+
+	Serial.print("RawPacket(");
+	Serial.print(request.GetPacketLength());
+	Serial.print("): ");
+	for(uint8_t i = 0; i < request.GetPacketLength(); ++i)
+	{
+		if(packet_arr[i] < 0x10) Serial.print("0");
+		Serial.print(packet_arr[i], HEX);
+		Serial.print(" ");
+	}
+	Serial.println();
 	
 	Serial.print("Type: ");
 	Serial.println( request.Type() );
@@ -84,7 +100,7 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 	Serial.print("RawData(");
 	Serial.print(request.GetDataLength());
 	Serial.print("): ");
-	for(uint8_t i = 0; i < sizeof(data_arr); ++i)
+	for(uint8_t i = 0; i < request.GetDataLength(); ++i)
 	{
 		if(data_arr[i] < 0x10) Serial.print("0");
 		Serial.print(data_arr[i], HEX);

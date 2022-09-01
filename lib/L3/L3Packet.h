@@ -87,7 +87,7 @@ class L3Packet
 {
 	const uint8_t _version = 0b010;		// Версия протокола, 3 бита.
 	const uint8_t _start_byte = 0x3C;	// Стартовый байт (знак '<').
-	const uint8_t _stop_byte = 0x3E;		// Стоповый байт (знак '>').
+	const uint8_t _stop_byte = 0x3E;	// Стоповый байт (знак '>').
 	
 	public:
 		
@@ -97,7 +97,8 @@ class L3Packet
 			ERROR_FORMAT = -1,
 			ERROR_VERSION = -2,
 			ERROR_CRC = -3,
-			ERROR_OVERFLOW = -4
+			ERROR_OVERFLOW = -4,
+			ERROR_TIMEOUT = -5
 		};
 		
 		L3Packet()
@@ -118,27 +119,36 @@ class L3Packet
 		//L3Packet& operator=(L3Packet &&) = default;
 		
 		// Copy assigments.
-		//L3Packet& operator=(const L3Packet &parent)
-		//{
-		//	for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
-		//	{
-		//		this->_packet[i] = parent._packet[i];
-		//	}
-		//	//this->_putDataIndex = parent._putDataIndex;
-		//	//this->_getDataIndex = parent._getDataIndex;
-		//	//this->_putPacketIndex = parent._putPacketIndex;
-		//	//this->_getPacketIndex = parent._getPacketIndex;
-		//	//this->_packet_size = parent._packet_size;
-		//	//this->_clean = parent._clean;
-		//	//this->_received = parent._received;
-		//	
-		//	return *this;
-		//}
+		L3Packet& operator=(const L3Packet &parent)
+		{
+			for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
+			{
+				this->_packet[i] = parent._packet[i];
+			}
+			this->_timeout = parent._timeout;
+			this->_error = parent._error;
+			this->_putDataIndex = parent._putDataIndex;
+			this->_getDataIndex = parent._getDataIndex;
+			this->_putPacketLastTime = parent._putPacketLastTime;
+			this->_putPacketIndex = parent._putPacketIndex;
+			this->_getPacketIndex = parent._getPacketIndex;
+			this->_packet_size = parent._packet_size;
+			this->_clean = parent._clean;
+			this->_received = parent._received;
+			
+			return *this;
+		}
 		
 		
+		// Устанавливает время timeout получения пакета. Если с момента последнего вставленного байта пакета больше чем time, то генерируем ошибку.
+		void SetTimeout(uint16_t time)
+		{
+			this->_timeout = time;
+			
+			return;
+		}
 		
 		
-
 		// Установить ID транспорта при передачи, 2 бита.
 		void Transport(uint8_t id)
 		{
@@ -224,7 +234,7 @@ class L3Packet
 		
 		
 		// Вставить данные, по-байтно.
-		bool Data1(uint8_t data)
+		bool PutData(uint8_t data)
 		{
 			bool result = false;
 			
@@ -319,45 +329,38 @@ class L3Packet
 		// Вставить пакет, по-байтно, при приёме пакета.
 		// 	uint8_t data - Байт данных;
 		// 	return - true в случае успеха;
-		bool PutPacketByte(uint8_t data)
+		bool PutPacketByte(uint8_t data, uint32_t time)
 		{
 			bool result = false;
-
-			// Идея: Проверять тут время последней вставки байта и если оно выше чем Х, то считаем что пакет бытий и у нас ERROR_TIMEOUT.
 			
-			if(this->_putPacketIndex < sizeof(this->_packet))
+			if(time - this->_putPacketLastTime < this->_timeout || this->_clean == true)
 			{
-				this->_packet[this->_putPacketIndex++] = data;
-				
-				
-				/*
-				for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
+				this->_putPacketLastTime = time;
+
+				if(this->_putPacketIndex < sizeof(this->_packet))
 				{
-					if(this->_packet[i] < 0x10) Serial.print("0");
-					Serial.print(this->_packet[i], HEX);
-					Serial.print(" ");
-				}
-				Serial.println();
-				*/
-				
-				
-				// Дошли и приняли байт с указанием длины данных.
-				if(this->_putPacketIndex >= 6)
-				{
-					// Дошли и приняли весь пакет.
-					if(this->_putPacketIndex == this->_packet[5] + 9)
+					this->_packet[this->_putPacketIndex++] = data;
+					
+					// Дошли и приняли байт с указанием длины данных.
+					if(this->_putPacketIndex >= 6)
 					{
-						this->_Check();
+						// Дошли и приняли весь пакет.
+						if(this->_putPacketIndex == this->_packet[5] + 9)
+						{
+							this->_Check();
+						}
 					}
+					
+					result = true;
 				}
-				
-				//++this->_putPacketIndex;
-				
-				result = true;
+				else
+				{
+					this->_error = ERROR_OVERFLOW;
+				}
 			}
 			else
 			{
-				this->_error = ERROR_OVERFLOW;
+				this->_error = ERROR_TIMEOUT;
 			}
 			
 			return result;
@@ -512,13 +515,15 @@ class L3Packet
 			return result;
 		}
 		
-		
+		uint16_t _timeout;				// Время timeout получения пакета.
+
 		uint8_t _packet[_maxDataLength + 9];	// Массив пакета данных.
 		error_t _error;					// Ошибка.
 		
 		uint8_t _putDataIndex;			// Индекс вставки данных в массив.
 		uint8_t _getDataIndex;			// Индекс извлечения данных из массива.
 		
+		uint32_t _putPacketLastTime;	// Время вставки последнего байта пакета.
 		uint8_t _putPacketIndex;		// Индекс вставки пакета в массив.
 		uint8_t _getPacketIndex;		// Индекс извлечения пакета из массива.
 		

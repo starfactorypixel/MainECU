@@ -124,7 +124,7 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 		Serial.print("): ");
 		for(int8_t i = 0; i < length; ++i)
 		{
-			response.Data1(bytes[i]);
+			response.PutData(bytes[i]);
 			
 			if(bytes[i] < 0x10) Serial.print("0");
 			Serial.print(bytes[i], HEX);
@@ -141,7 +141,7 @@ bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 		
 		byte err_data[1];
 		err_data[0] = 0xE1;
-		response.Data1(err_data[0]);
+		response.PutData(err_data[0]);
 	}
 	
 	Serial.println();

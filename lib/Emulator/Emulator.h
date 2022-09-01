@@ -38,6 +38,14 @@ class VirtualDevice : public VirtualDeviceInterface
 			memcpy(bytes, &config.value, sizeof(T));
 			length = sizeof(T);
 			
+			// Перфекционизм или дебилизм?
+			for(uint8_t i = 0; i < (length / 2); ++i)
+			{
+				uint8_t t = bytes[i];
+				bytes[i] = bytes[length - i - 1];
+				bytes[length - i - 1] = t;
+			}
+			
 			return;
 		}
 		

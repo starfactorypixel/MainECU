@@ -16,7 +16,6 @@ class L3Driver
 #ifdef ARDUINO_ARCH_ESP32
 	#include "L3DriverBluetooth.h"
 	#include "L3DriverSerial.h"
-	//#include "L3DriverSoftSerial.h"
 	#include "L3DriverUART.h"
 #elif ARDUINO_ARCH_AVR
 	#include "L3DriverSerial.h"

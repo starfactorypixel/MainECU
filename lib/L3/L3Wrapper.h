@@ -15,18 +15,30 @@ class L3Wrapper
 		{
 			this->_transport = transport;
 			
+			switch(transport)
+			{
+				case 0x00: { _rx_packet.SetTimeout(25); break; };
+				case 0x01: { _rx_packet.SetTimeout(5);  break; };
+				case 0x02: { _rx_packet.SetTimeout(25); break; };
+				case 0x03: { _rx_packet.SetTimeout(10); break; };
+			}
+			
 			return;
 		}
 		
 		void Init()
 		{
 			this->_driver->Init();
+
+			return;
 		}
 		
 		void RegCallback(callback_event_t event, callback_error_t error = nullptr)
 		{
 			this->_callback_event = event;
 			this->_callback_error = error;
+
+			return;
 		}
 		
 		void SetUrgent()
@@ -43,44 +55,21 @@ class L3Wrapper
 			{
 				byte incomingByte = this->_driver->ReadByte();
 				
-				if( _rx_packet.PutPacketByte(incomingByte) == true )
+				if( _rx_packet.PutPacketByte(incomingByte, millis()) == true )	// УБРАТЬ millis !!!!
 				{
 					if( _rx_packet.IsReceived() == true )
 					{
 						if( this->_callback_event(_rx_packet, _tx_packet) == true )
 						{
-							// Установка транспорта ( перенести в L3Packet.h ? )
-							_tx_packet.Transport(this->_transport);
-							
-							// Флаг ответа.
-							_tx_packet.Direction(1);
-							
-							// Флаг необходимости передать срочное сообщение.
-							if(this->_urgent_data == true) _tx_packet.Urgent(1);
-							this->_urgent_data = false;
-							
-							_tx_packet.Prepare();
-							
-							// Отправка ответа.
-							byte txbyte;
-							while( _tx_packet.GetPacketByte(txbyte) == true )
-							{
-								this->_driver->SendByte(txbyte);
-							}
-							
-							// Очистка пакета.
-							_tx_packet.Init();
+							// В колбеке необходимо установить как минимум два параметра: Type и Param.
+							// Данные тоже, если нужно что-то передать.
+							this->_Send();
 						}
 						_rx_packet.Init();
 					}
-					
-					if(_rx_packet.GetError() < 0)
-					{
-						this->_callback_error(_rx_packet, _rx_packet.GetError());
-						_rx_packet.Init();
-					}
 				}
-				else
+				
+				if(_rx_packet.GetError() < 0)
 				{
 					this->_callback_error(_rx_packet, _rx_packet.GetError());
 					_rx_packet.Init();
@@ -95,13 +84,26 @@ class L3Wrapper
 		
 		void Send(uint8_t type, uint16_t param, byte *data, uint8_t length)
 		{
-			_tx_packet.Transport(this->_transport);
 			_tx_packet.Type(type);
 			_tx_packet.Param(param);
 			for(int8_t i = 0; i < length; ++i)
 			{
-				_tx_packet.Data1(data[i]);
+				_tx_packet.PutData(data[i]);
 			}
+			this->_Send();
+			
+			return;
+		}
+	
+	private:
+		void _Send()
+		{
+			_tx_packet.Transport(this->_transport);
+			_tx_packet.Direction(0x01);
+			
+			if(this->_urgent_data == true) _tx_packet.Urgent(1);
+			this->_urgent_data = false;
+			
 			_tx_packet.Prepare();
 			
 			byte txbyte;
@@ -114,8 +116,7 @@ class L3Wrapper
 			
 			return;
 		}
-	
-	private:
+		
 		packet_t _rx_packet;
 		packet_t _tx_packet;
 		callback_event_t _callback_event;

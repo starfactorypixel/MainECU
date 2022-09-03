@@ -327,9 +327,9 @@ class L3Packet
 		
 		
 		// Вставить пакет, по-байтно, при приёме пакета.
-		// 	uint8_t data - Байт данных;
+		//  uint8_t data - Байт данных;
 		//  uint32_t time - Время получения байта;
-		// 	return - true в случае успеха;
+		//  return - true в случае успеха;
 		bool PutPacketByte(uint8_t data, uint32_t time)
 		{
 			bool result = false;

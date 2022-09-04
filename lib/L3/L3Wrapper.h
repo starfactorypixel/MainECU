@@ -4,6 +4,9 @@
 
 #pragma once
 
+#include <L3Packet.h>
+#include <L3Driver.h>
+
 class L3Wrapper
 {
 	public:

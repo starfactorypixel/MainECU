@@ -9,12 +9,14 @@ class StateDB
 {
     public:
         
+        #pragma pack(push, 1)
         struct db_t
         {
             uint8_t data[8];        // 8 байт данных, как в CAN.
             uint8_t length;         // Полезная длина данных.
             uint32_t time;          // Время последнего изменения данных.
         };
+        #pragma pack(pop)
         
         StateDB()
         {

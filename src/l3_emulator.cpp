@@ -29,10 +29,10 @@ L3Wrapper L3(0, driver_ss);
 Emulator em;
 
 //								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
-VirtualDevice<uint32_t> dev_voltage(54229,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint32_t>::ALG_MINFADEMAX);
-VirtualDevice<uint8_t>    dev_speed(18260,		0,			101,		750,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
-VirtualDevice<int32_t>  dev_current(41177,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int32_t>::ALG_RANDOM);
-VirtualDevice<bool>       dev_light(23673,		0,			1,			5000,		1,			0,			VirtualDevice<bool>::ALG_MINMAX);
+VirtualDevice<uint32_t> dev_voltage(174,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint32_t>::ALG_MINFADEMAX);
+VirtualDevice<uint8_t>    dev_speed(125,		0,			101,		750,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
+VirtualDevice<int32_t>  dev_current(239,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int32_t>::ALG_RANDOM);
+VirtualDevice<bool>       dev_light(513,		0,			1,			5000,		1,			0,			VirtualDevice<bool>::ALG_MINMAX);
 
 bool OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
 void OnError(L3Wrapper::packet_t &packet, int8_t code);

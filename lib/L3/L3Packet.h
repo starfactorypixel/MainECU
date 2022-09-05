@@ -266,7 +266,7 @@ class L3Packet
 		
 		
 		// Вставить данные, массивом.
-		bool Data2(uint8_t *data, uint8_t length)
+		bool PutData(uint8_t *data, uint8_t length)
 		{
 			bool result = false;
 			
@@ -274,9 +274,9 @@ class L3Packet
 			{
 				for(uint8_t i = 0; i < length; ++i)
 				{
-					this->_packet[6 + i] = data[i];
+					this->_packet[6 + this->_putDataIndex++] = data[i];
 				}
-				this->_packet[5] = length;
+				this->_packet[5] = this->_putDataIndex;
 				
 				result = true;
 			}

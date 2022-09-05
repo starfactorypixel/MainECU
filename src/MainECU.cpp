@@ -7,6 +7,20 @@
 #include <StateDB.h>
 #include <L3Wrapper.h>
 
+
+
+
+#include <Emulator.h>
+Emulator em;
+//								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
+VirtualDevice<uint32_t> dev_voltage(174,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint32_t>::ALG_MINFADEMAX);
+VirtualDevice<uint8_t>    dev_speed(125,		0,			101,		750,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
+VirtualDevice<int32_t>  dev_current(239,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int32_t>::ALG_RANDOM);
+VirtualDevice<bool>       dev_light(513,		0,			1,			5000,		1,			0,			VirtualDevice<bool>::ALG_MINMAX);
+
+
+
+
 StateDB<> DB;
 
 L3DriverBluetooth driver_ss;    // Для соединения по BT.
@@ -24,15 +38,58 @@ void setup()
     
     L3.RegCallback(L3OnRX, L3OnError);
     L3.Init();
+
+
+
+
+	em.RegDevice(dev_voltage);
+	em.RegDevice(dev_speed);
+	em.RegDevice(dev_current);
+	em.RegDevice(dev_light);
+
+
+
+
     
     return;
 }
 
+uint32_t current_time = 0;
+uint32_t tick = 0;
+
 void loop()
 {
-    static uint32_t current_time = millis();
+    current_time = millis();
 
+    L3.IncomingByte();
     
+    
+    
+
+    // Чтобы не переписывать эмулятор, вот аткой костыль :|
+    em.Processing(current_time);
+    if(current_time - tick > 50)
+    {
+        tick = current_time;
+        
+        uint8_t bytes[8];
+        uint8_t length;
+        em.Request(174, bytes, length);
+        DB.Set(174, bytes, length, current_time);
+
+        em.Request(125, bytes, length);
+        DB.Set(125, bytes, length, current_time);
+
+        em.Request(239, bytes, length);
+        DB.Set(239, bytes, length, current_time);
+
+        em.Request(513, bytes, length);
+        DB.Set(513, bytes, length, current_time);
+    }
+    
+    
+    
+
     return;
 }
 
@@ -44,6 +101,42 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
     
     uint8_t *data_ptr = request.GetDataPtr();
     
+    // https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
+    switch (request.Type())
+    {
+        case 0x00:
+        {
+            break;
+        }
+        case 0x01:
+        {
+            StateDB<>::db_t db_obj;
+            if( DB.Get(request.Param(), db_obj) == true )
+            {
+                response.Type( request.Type() );
+                response.Param( request.Param() );
+                response.PutData( db_obj.data, db_obj.length );
+            }
+            else
+            {
+                response.Type( 0x1F );
+                response.Param( request.Param() );
+                response.PutData( 0x01 );
+            }
+            result = true;
+            
+            break;
+        }
+        default:
+        {
+            response.Type( 0x1F );
+            response.Param( request.Param() );
+            response.PutData( 0x02 );
+            result = true;
+            
+            break;
+        }
+    }
     
     return result;
 }
@@ -56,6 +149,12 @@ void L3OnError(L3Wrapper::packet_t &packet, int8_t code)
     
     return;
 }
+
+
+
+
+
+
 
 // Приём пакета по протоколу L2. Не реализовано.
 bool L2OnRX(/* Входящий объект с данными, Исходящий объект с данными */)

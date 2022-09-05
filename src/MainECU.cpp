@@ -8,10 +8,30 @@
 #include <L3Wrapper.h>
 
 
+StateDB<> DB;
+
+L3DriverBluetooth driver_ss;    // Для соединения по BT.
+//L3DriverSerial driver_ss;     // Для соединения по Serial.
+L3Wrapper L3(0, driver_ss);
+
+bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
+void L3OnError(L3Wrapper::packet_t &packet, int8_t code);
+
+
+
+
+
+
 
 
 #include <Emulator.h>
-Emulator em;
+void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
+{
+    DB.Set(id, bytes, length, time);
+
+    return;
+}
+Emulator em(EmulatorOnUpdate);
 //								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
 VirtualDevice<uint32_t> dev_voltage(174,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint32_t>::ALG_MINFADEMAX);
 VirtualDevice<uint8_t>    dev_speed(125,		0,			101,		750,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
@@ -21,14 +41,10 @@ VirtualDevice<bool>       dev_light(513,		0,			1,			5000,		1,			0,			VirtualDevi
 
 
 
-StateDB<> DB;
 
-L3DriverBluetooth driver_ss;    // Для соединения по BT.
-//L3DriverSerial driver_ss;     // Для соединения по Serial.
-L3Wrapper L3(0, driver_ss);
 
-bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
-void L3OnError(L3Wrapper::packet_t &packet, int8_t code);
+
+
 
 
 void setup()
@@ -65,28 +81,7 @@ void loop()
     
     
     
-
-    // Чтобы не переписывать эмулятор, вот аткой костыль :|
     em.Processing(current_time);
-    if(current_time - tick > 50)
-    {
-        tick = current_time;
-        
-        uint8_t bytes[8];
-        uint8_t length;
-        em.Request(174, bytes, length);
-        DB.Set(174, bytes, length, current_time);
-
-        em.Request(125, bytes, length);
-        DB.Set(125, bytes, length, current_time);
-
-        em.Request(239, bytes, length);
-        DB.Set(239, bytes, length, current_time);
-
-        em.Request(513, bytes, length);
-        DB.Set(513, bytes, length, current_time);
-    }
-    
     
     
 

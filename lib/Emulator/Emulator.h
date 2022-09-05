@@ -10,8 +10,9 @@ class VirtualDeviceInterface
 		virtual ~VirtualDeviceInterface() = default;
 		
 		virtual void GetValueBytes(uint8_t *bytes, uint8_t &length) const = 0;
-		virtual void UpdateValue(uint32_t current_time) = 0;
+		virtual bool UpdateValue(uint32_t current_time) = 0;
 		virtual bool IsHere(uint32_t id) const = 0;
+		virtual uint32_t GetID() const = 0;
 };
 
 template <typename T>
@@ -49,8 +50,10 @@ class VirtualDevice : public VirtualDeviceInterface
 			return;
 		}
 		
-		void UpdateValue(uint32_t current_time)
+		bool UpdateValue(uint32_t current_time)
 		{
+			bool result = false;
+			
 			if(current_time - config.update > config.interval)
 			{
 				config.update = current_time;
@@ -92,14 +95,21 @@ class VirtualDevice : public VirtualDeviceInterface
 						break;
 					}
 				}
+
+				result = true;
 			}
 			
-			return;
+			return result;
 		}
 		
 		bool IsHere(uint32_t id) const
 		{
 			return (config.id == id);
+		}
+
+		uint32_t GetID() const
+		{
+			return config.id;
 		}
 		
 	private:
@@ -121,6 +131,16 @@ class VirtualDevice : public VirtualDeviceInterface
 class Emulator
 {
 	public:
+		
+		using callback_event_t = void (*)(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time);
+		
+		Emulator(callback_event_t callback = nullptr)
+		{
+			this->_callback = callback;
+			
+			return;
+		}
+		
 		void RegDevice(VirtualDeviceInterface &obj)
 		{
 			this->_obj[_obj_idx++] = &obj;
@@ -162,7 +182,14 @@ class Emulator
 			{
 				for(uint8_t i = 0; i < this->_obj_idx; ++i)
 				{
-					this->_obj[i]->UpdateValue(time);
+					if( this->_obj[i]->UpdateValue(time) == true )
+					{
+						uint8_t bytes[8];
+						uint8_t length;
+						this->_obj[i]->GetValueBytes(bytes, length);
+						
+						this->_callback(this->_obj[i]->GetID(), bytes, length, time);
+					}
 				}
 			}
 			
@@ -171,6 +198,7 @@ class Emulator
 		
 	private:
 		
+		callback_event_t _callback;
 		VirtualDeviceInterface *_obj[64];
 		uint8_t _obj_idx = 0;
 		uint32_t _ticktime = 0;

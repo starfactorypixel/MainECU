@@ -8,3 +8,6 @@
 
 /CMakeLists.txt
 /CMakeListsPrivate.txt
+/cmake-build-*/
+
+/platformio_local.ini

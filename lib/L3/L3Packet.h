@@ -1,5 +1,6 @@
 /*
 	Пакет L3.
+	https://wiki.starpixel.org/books/mainecu/page/protokol-l3
 */
 
 /*
@@ -85,7 +86,7 @@ struct L3Packet_t
 template <uint8_t _maxDataLength = 64>
 class L3Packet
 {
-	const uint8_t _version = 0b010;		// Версия протокола, 3 бита.
+	const uint8_t _version = 0b000;		// Версия протокола, 3 бита.
 	const uint8_t _start_byte = 0x3C;	// Стартовый байт (знак '<').
 	const uint8_t _stop_byte = 0x3E;	// Стоповый байт (знак '>').
 	
@@ -225,14 +226,6 @@ class L3Packet
 		}
 		
 		
-		
-		
-		
-		
-		
-		
-		
-		
 		// Вставить данные, по-байтно.
 		bool PutData(uint8_t data)
 		{
@@ -283,29 +276,12 @@ class L3Packet
 			
 			return result;
 		}
-		
-		// Получить данные, массивом.
-		void Data2(uint8_t *data)
-		{
-			// ...
-			
-			return;
-		}
-		
-		
-		
+
+		// Получить указатель на массив данных. Размер получить через GetDataLength().
 		uint8_t *GetDataPtr()
 		{
 			return &this->_packet[6];
 		}
-		
-		
-		
-		
-		
-		
-		
-		
 		
 		
 		// Получить пакет, по-байтно, при передачи пакета.
@@ -367,35 +343,11 @@ class L3Packet
 			return result;
 		}
 		
-		
-
+		// Получить указатель на массив пакета. Размер получить через GetPacketLength().
 		uint8_t *GetPacketPtr()
 		{
 			return &this->_packet[0];
 		}
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
 		
 		
 		// Получить размер данных, при приёме.

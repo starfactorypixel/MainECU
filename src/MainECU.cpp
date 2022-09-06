@@ -101,6 +101,10 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
     {
         case 0x00:
         {
+            // Все сервисные флаги будут установлены автоматически.
+            response = request;
+            result = true;
+            
             break;
         }
         case 0x01:

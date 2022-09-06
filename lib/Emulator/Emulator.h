@@ -182,7 +182,8 @@ class Emulator
 						uint8_t length;
 						this->_data[i].obj->GetValueBytes(bytes, length);
 						
-						this->_callback(this->_data[i].id, bytes, length, time);
+						if(this->_callback != nullptr)
+							this->_callback(this->_data[i].id, bytes, length, time);
 					}
 				}
 			}

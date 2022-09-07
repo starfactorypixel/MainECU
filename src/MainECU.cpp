@@ -161,18 +161,9 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
         }
         case 0x11:
         {
-            StateDB::db_t db_obj;
-            db_obj.length = request.GetDataLength();
-            db_obj.time = millis();                     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            
-            // Не смотрите сюда, этого кода тут нету. Такой бред не может быть написан. Листай дальше..
-            for(uint8_t i = 0; i < request.GetDataLength(); ++i)
+            if( DB.Set( request.Param(), data_ptr, request.GetDataLength(), millis() ) == true )
             {
-                db_obj.data[i] = data_ptr[i];
-            }
-            
-            if( DB.Set(request.Param(), db_obj) == true )
-            {
+                StateDB::db_t db_obj;
                 DB.Get(request.Param(), db_obj);
                 
                 response.Type( request.Type() );

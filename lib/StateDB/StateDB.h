@@ -4,9 +4,10 @@
     В данный момент: (8 + 1 + 4) * 2048 = 26624 = 26КБ SRAM памяти занимает эта БД.
 */
 
-template <uint16_t _max_id_count = 2048>
 class StateDB
 {
+    static const uint16_t _max_id_count = 2048;
+    
     public:
         
         #pragma pack(push, 1)

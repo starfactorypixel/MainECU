@@ -86,9 +86,9 @@ struct L3Packet_t
 template <uint8_t _maxDataLength = 64>
 class L3Packet
 {
-	const uint8_t _version = 0b000;		// Версия протокола, 3 бита.
-	const uint8_t _start_byte = 0x3C;	// Стартовый байт (знак '<').
-	const uint8_t _stop_byte = 0x3E;	// Стоповый байт (знак '>').
+	static const uint8_t _version = 0b000;		// Версия протокола, 3 бита.
+	static const uint8_t _start_byte = 0x3C;	// Стартовый байт (знак '<').
+	static const uint8_t _stop_byte = 0x3E;		// Стоповый байт (знак '>').
 	
 	public:
 		
@@ -405,18 +405,16 @@ class L3Packet
 		{
 			memset(&this->_packet, 0x00, sizeof(this->_packet));
 			
+			//this->_timeout не очищаем!
+			this->_error = ERROR_NONE;
 			this->_putDataIndex = 0;
 			this->_getDataIndex = 0;
-			
+			this->_putPacketLastTime = 0;
 			this->_putPacketIndex = 0;
 			this->_getPacketIndex = 0;
-			
 			this->_packet_size = 0;
-			
 			this->_clean = true;
 			this->_received = false;
-			
-			this->_error = ERROR_NONE;
 			
 			return;
 		}

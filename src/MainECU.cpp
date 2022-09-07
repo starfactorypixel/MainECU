@@ -8,7 +8,7 @@
 #include <L3Wrapper.h>
 
 
-StateDB<> DB;
+StateDB DB;
 
 L3DriverBluetooth driver_ss;    // Для соединения по BT.
 //L3DriverSerial driver_ss;     // Для соединения по Serial.
@@ -142,7 +142,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
         }
         case 0x01:
         {
-            StateDB<>::db_t db_obj;
+            StateDB::db_t db_obj;
             if( DB.Get(request.Param(), db_obj) == true )
             {
                 response.Type( request.Type() );
@@ -154,6 +154,36 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
                 response.Type( 0x1E );
                 response.Param( request.Param() );
                 response.PutData( 0x01 );
+            }
+            result = true;
+            
+            break;
+        }
+        case 0x11:
+        {
+            StateDB::db_t db_obj;
+            db_obj.length = request.GetDataLength();
+            db_obj.time = millis();                     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            
+            // Не смотрите сюда, этого кода тут нету. Такой бред не может быть написан. Листай дальше..
+            for(uint8_t i = 0; i < request.GetDataLength(); ++i)
+            {
+                db_obj.data[i] = data_ptr[i];
+            }
+            
+            if( DB.Set(request.Param(), db_obj) == true )
+            {
+                DB.Get(request.Param(), db_obj);
+                
+                response.Type( request.Type() );
+                response.Param( request.Param() );
+                response.PutData( db_obj.data, db_obj.length );
+            }
+            else
+            {
+                response.Type( 0x1E );
+                response.Param( request.Param() );
+                response.PutData( 0x03 );
             }
             result = true;
             
@@ -192,25 +222,25 @@ void L3OnError(L3Wrapper::packet_t &packet, int8_t code)
     
     switch (code)
 	{
-		case L3Packet<>::ERROR_FORMAT:
+		case packet.ERROR_FORMAT:
 		{
 			Serial.println("ERROR_FORMAT");
 			
 			break;
 		}
-		case L3Packet<>::ERROR_VERSION:
+		case packet.ERROR_VERSION:
 		{
 			Serial.println("ERROR_VERSION");
 			
 			break;
 		}
-		case L3Packet<>::ERROR_CRC:
+		case packet.ERROR_CRC:
 		{
 			Serial.println("ERROR_CRC");
 			
 			break;
 		}
-		case L3Packet<>::ERROR_OVERFLOW:
+		case packet.ERROR_OVERFLOW:
 		{
 			Serial.println("ERROR_OVERFLOW");
 			

@@ -94,7 +94,40 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 {
     bool result = false;
     
+    // debug //
+    uint8_t *packet_ptr = request.GetPacketPtr();
     uint8_t *data_ptr = request.GetDataPtr();
+
+	Serial.print("RawPacket(");
+	Serial.print(request.GetPacketLength());
+	Serial.print("): ");
+	for(uint8_t i = 0; i < request.GetPacketLength(); ++i)
+	{
+		if(packet_ptr[i] < 0x10) Serial.print("0");
+		Serial.print(packet_ptr[i], HEX);
+		Serial.print(" ");
+	}
+	Serial.println();
+	
+	Serial.print("Type: ");
+	Serial.println( request.Type() );
+	
+	Serial.print("Param: ");
+	Serial.println( request.Param() );
+	
+	Serial.print("RawData(");
+	Serial.print(request.GetDataLength());
+	Serial.print("): ");
+	for(uint8_t i = 0; i < request.GetDataLength(); ++i)
+	{
+		if(data_ptr[i] < 0x10) Serial.print("0");
+		Serial.print(data_ptr[i], HEX);
+		Serial.print(" ");
+	}
+	Serial.println();
+    Serial.println();
+    // debug //
+
     
     // https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
     switch (request.Type())
@@ -143,8 +176,54 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 // Ошибка приёма пакета по протоколу L3. Реализовано.
 void L3OnError(L3Wrapper::packet_t &packet, int8_t code)
 {
-    uint8_t *packet_ptr = packet.GetPacketPtr();
     
+    uint8_t *packet_ptr = packet.GetPacketPtr();
+
+	Serial.print("RawPacket(");
+	Serial.print(packet.GetPacketLength());
+	Serial.print("): ");
+	for(uint8_t i = 0; i < packet.GetPacketLength(); ++i)
+	{
+		if(packet_ptr[i] < 0x10) Serial.print("0");
+		Serial.print(packet_ptr[i], HEX);
+		Serial.print(" ");
+	}
+	Serial.println();
+    
+    switch (code)
+	{
+		case L3Packet<>::ERROR_FORMAT:
+		{
+			Serial.println("ERROR_FORMAT");
+			
+			break;
+		}
+		case L3Packet<>::ERROR_VERSION:
+		{
+			Serial.println("ERROR_VERSION");
+			
+			break;
+		}
+		case L3Packet<>::ERROR_CRC:
+		{
+			Serial.println("ERROR_CRC");
+			
+			break;
+		}
+		case L3Packet<>::ERROR_OVERFLOW:
+		{
+			Serial.println("ERROR_OVERFLOW");
+			
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
+
+    Serial.println();
+    Serial.println();
     
     return;
 }

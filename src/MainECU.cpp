@@ -118,7 +118,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
             }
             else
             {
-                response.Type( 0x1F );
+                response.Type( 0x1E );
                 response.Param( request.Param() );
                 response.PutData( 0x01 );
             }
@@ -128,7 +128,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
         }
         default:
         {
-            response.Type( 0x1F );
+            response.Type( 0x1E );
             response.Param( request.Param() );
             response.PutData( 0x02 );
             result = true;

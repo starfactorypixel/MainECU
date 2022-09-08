@@ -31,7 +31,7 @@ class StateDB
         {
             bool result = false;
             
-            if(id < this->_max_id && length < this->_max_data)
+            if(id < this->_max_id && length <= this->_max_data)
             {
                 for(uint8_t i = 0; i < length; ++i)
                 {
@@ -50,7 +50,7 @@ class StateDB
         {
             bool result = false;
             
-            if(id < this->_max_id && obj.length < this->_max_data)
+            if(id < this->_max_id && obj.length <= this->_max_data)
             {
                 for(uint8_t i = 0; i < obj.length; ++i)
                 {

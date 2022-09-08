@@ -161,7 +161,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
         }
         case 0x11:
         {
-            if( DB.Set( request.Param(), data_ptr, request.GetDataLength(), millis() ) == true )
+            if( DB.Set( request.Param(), data_ptr, request.GetDataLength(), request.GetPacketTime() ) == true )
             {
                 StateDB::db_t db_obj;
                 DB.Get(request.Param(), db_obj);

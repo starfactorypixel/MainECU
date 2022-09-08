@@ -60,6 +60,8 @@ class L3Wrapper
 				
 				if( _rx_packet.PutPacketByte(incomingByte, millis()) == true )	// УБРАТЬ millis !!!!
 				{
+					// По прерыванию выполняем есь код выше, - Читаем полученный байт, вставляем его в пакет с указанием времени.
+					// Код ниже выполняем в loop().
 					if( _rx_packet.IsReceived() == true )
 					{
 						if( this->_callback_event(_rx_packet, _tx_packet) == true )

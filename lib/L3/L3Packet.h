@@ -362,6 +362,12 @@ class L3Packet
 			return this->_packet[5] + 9;
 		}
 		
+		// Получить время последнего байта. Если (IsReceived() == true), то время получения пакета.
+		uint32_t GetPacketTime()
+		{
+			return this->_putPacketLastTime;
+		}
+		
 		// Получить код последней ошибки.
 		int8_t GetError()
 		{

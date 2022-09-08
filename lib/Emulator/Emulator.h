@@ -170,7 +170,7 @@ class Emulator
 			return result;
 		}
 		
-		void Processing(uint32_t time = millis())
+		void Processing(uint32_t time)
 		{
 			if(time - this->_ticktime > 5)
 			{

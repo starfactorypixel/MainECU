@@ -6,16 +6,17 @@
 
 class StateDB
 {
-    static const uint16_t _max_id_count = 2048;
+    static const uint16_t _max_id = 2048;   // Максимальный ID хранимый в БД, от 0 до (_max_id - 1).
+    static const uint8_t _max_data = 8;     // Максимальное кол-во байт в поле данных.
     
     public:
         
         #pragma pack(push, 1)
         struct db_t
         {
-            uint8_t data[8];        // 8 байт данных, как в CAN.
-            uint8_t length;         // Полезная длина данных.
-            uint32_t time;          // Время последнего изменения данных.
+            uint8_t data[_max_data];        // Байты данных, как в CAN, или нет?
+            uint8_t length;                 // Полезная длина данных.
+            uint32_t time;                  // Время последнего изменения данных.
         };
         #pragma pack(pop)
         
@@ -30,7 +31,7 @@ class StateDB
         {
             bool result = false;
             
-            if(id < _max_id_count)
+            if(id < this->_max_id && length < this->_max_data)
             {
                 for(uint8_t i = 0; i < length; ++i)
                 {
@@ -49,7 +50,7 @@ class StateDB
         {
             bool result = false;
             
-            if(id < _max_id_count)
+            if(id < this->_max_id && obj.length < this->_max_data)
             {
                 for(uint8_t i = 0; i < obj.length; ++i)
                 {
@@ -68,7 +69,7 @@ class StateDB
         {
             bool result = false;
 
-            if(id < _max_id_count && this->_db[id].time > 0)
+            if(id < this->_max_id && this->_db[id].time > 0)
             {
                 data = &this->_db[id].data[0];
                 length = this->_db[id].length;
@@ -89,7 +90,7 @@ class StateDB
         {
             bool result = false;
             
-            if(id < _max_id_count && this->_db[id].time > 0)
+            if(id < this->_max_id && this->_db[id].time > 0)
             {
                 obj = this->_db[id];
                 
@@ -100,6 +101,6 @@ class StateDB
         }
 
     private:
-        db_t _db[_max_id_count];
+        db_t _db[_max_id];
 
 };

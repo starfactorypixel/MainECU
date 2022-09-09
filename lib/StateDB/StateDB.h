@@ -3,9 +3,12 @@
     Пока настроен на версию CAN 2.0A. Реализация версии 2.0B потребует использовать другой подход, с динамическими списками :(
     В данный момент: (8 + 1 + 4) * 2048 = 26624 = 26КБ SRAM памяти занимает эта БД.
 */
+class test_StateDB;
 
 class StateDB
 {
+    friend class test_StateDB;
+
     static const uint16_t _max_id = 2048;   // Максимальный ID хранимый в БД, от 0 до (_max_id - 1).
     static const uint8_t _max_data = 8;     // Максимальное кол-во байт в поле данных.
     
@@ -27,70 +30,73 @@ class StateDB
             return;
         }
         
-        bool Set(uint16_t id, uint8_t *data, uint8_t length, uint32_t time)
+        bool Set(uint16_t id, const uint8_t *data, uint8_t length, uint32_t time)
         {
             bool result = false;
             
             if(id < this->_max_id && length <= this->_max_data)
             {
-                for(uint8_t i = 0; i < length; ++i)
+                auto& item = this->_db[id];
+                if (time > item.time)
                 {
-                    this->_db[id].data[i] = data[i];
-                }
-                this->_db[id].length = length;
-                this->_db[id].time = time;
+                    for(uint8_t i = 0; i < length; ++i)
+                    {
+                        item.data[i] = data[i];
+                    }
+                    item.length = length;
+                    item.time = time;
 
-                result = true;
+                    result = true;
+                }
             }
             
             return result;
         }
         
-        bool Set(uint16_t id, db_t &obj)
+        bool Set(uint16_t id, const db_t &obj)
         {
             bool result = false;
             
             if(id < this->_max_id && obj.length <= this->_max_data)
             {
-                for(uint8_t i = 0; i < obj.length; ++i)
+                if (obj.time > _db[id].time)
                 {
-                    this->_db[id].data[i] = obj.data[i];
+                    auto& item = this->_db[id];
+                    for(uint8_t i = 0; i < obj.length; ++i)
+                    {
+                        item.data[i] = obj.data[i];
+                    }
+                    item.length = obj.length;
+                    item.time = obj.time;
+
+                    result = true;
                 }
-                this->_db[id].length = obj.length;
-                this->_db[id].time = obj.time;
-                
-                result = true;
             }
             
             return result;
         }
         
-        bool Get(uint16_t id, uint8_t *&data, uint8_t &length, uint32_t &time)
+        bool Get(uint16_t id, const uint8_t*& data, uint8_t &length, uint32_t &time) const
         {
             bool result = false;
 
-            if(id < this->_max_id && this->_db[id].time > 0)
+            if(id < this->_max_id && this->_db[id].time)
             {
-                data = &this->_db[id].data[0];
+                data = this->_db[id].data;
                 length = this->_db[id].length;
                 time = this->_db[id].time;
 
                 result = true;
             }
-            else
-            {
-                data = 0x00;
-                length = 0;
-            }
             
             return result;
         }
 
-        bool Get(uint16_t id, db_t &obj)
+        bool Get(uint16_t id, db_t &obj) const
         {
             bool result = false;
             
-            if(id < this->_max_id && this->_db[id].time > 0)
+            if(id < this->_max_id && this->_db[id].time)
             {
                 obj = this->_db[id];
                 

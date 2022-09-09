@@ -5,10 +5,20 @@
 #include <Arduino.h>
 
 #include <StateDB.h>
+#include <L2Wrapper.h>
 #include <L3Wrapper.h>
 
 
 StateDB DB;
+
+
+
+L2Wrapper L2;
+
+bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response);
+void L2OnError(int8_t code);
+
+
 
 L3DriverBluetooth driver_ss;    // Для соединения по BT.
 //L3DriverSerial driver_ss;     // Для соединения по Serial.
@@ -43,7 +53,18 @@ VirtualDevice<bool>       dev_light(513,		0,			1,			5000,		1,			0,			VirtualDevi
 
 
 
-
+void PrintArrayHex(uint8_t *data, uint8_t length, bool prefix = true)
+{
+    for(uint8_t i = 0; i < length; ++i)
+    {
+        if(prefix == true) Serial.print("0x");
+        if(data[i] < 0x10) Serial.print("0");
+        Serial.print(data[i], HEX);
+        Serial.print(" ");
+    }
+    
+    return;
+}
 
 
 
@@ -51,6 +72,10 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("Start Main ECU");
+
+    
+    L2.RegCallback(L2OnRX, L2OnError);
+    L2.Init();
     
     L3.RegCallback(L3OnRX, L3OnError);
     L3.Init();
@@ -101,12 +126,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 	Serial.print("RawPacket(");
 	Serial.print(request.GetPacketLength());
 	Serial.print("): ");
-	for(uint8_t i = 0; i < request.GetPacketLength(); ++i)
-	{
-		if(packet_ptr[i] < 0x10) Serial.print("0");
-		Serial.print(packet_ptr[i], HEX);
-		Serial.print(" ");
-	}
+    PrintArrayHex(packet_ptr, request.GetPacketLength());
 	Serial.println();
 	
 	Serial.print("Type: ");
@@ -118,12 +138,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 	Serial.print("RawData(");
 	Serial.print(request.GetDataLength());
 	Serial.print("): ");
-	for(uint8_t i = 0; i < request.GetDataLength(); ++i)
-	{
-		if(data_ptr[i] < 0x10) Serial.print("0");
-		Serial.print(data_ptr[i], HEX);
-		Serial.print(" ");
-	}
+    PrintArrayHex(data_ptr, request.GetDataLength());
 	Serial.println();
     Serial.println();
     // debug //
@@ -203,12 +218,7 @@ void L3OnError(L3Wrapper::packet_t &packet, int8_t code)
 	Serial.print("RawPacket(");
 	Serial.print(packet.GetPacketLength());
 	Serial.print("): ");
-	for(uint8_t i = 0; i < packet.GetPacketLength(); ++i)
-	{
-		if(packet_ptr[i] < 0x10) Serial.print("0");
-		Serial.print(packet_ptr[i], HEX);
-		Serial.print(" ");
-	}
+    PrintArrayHex(packet_ptr, packet.GetPacketLength());
 	Serial.println();
     
     switch (code)
@@ -256,16 +266,30 @@ void L3OnError(L3Wrapper::packet_t &packet, int8_t code)
 
 
 // Приём пакета по протоколу L2. Не реализовано.
-bool L2OnRX(/* Входящий объект с данными, Исходящий объект с данными */)
+bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
     bool result = false;
+
+    
+    Serial.println("CAN RX: ");
+    Serial.print(" > Address: "); Serial.print( request.address, HEX ); Serial.println(";");
+    Serial.print(" > Length: "); Serial.print( request.length ); Serial.println(";");
+    Serial.print(" > Data: "); PrintArrayHex( request.data, request.length ); Serial.println(";");
+    Serial.println();
     
     
     return result;
 }
 
 // Ошибка приёма пакета по протоколу L2. Не реализовано.
-void L2OnError(/* Объект с сырыми входящими данными, Код ошибки */)
+void L2OnError(int8_t code)
 {
+    
+    
+    Serial.println("CAN ERROR: ");
+    Serial.print(" > Code: "); Serial.print( code ); Serial.println(";");
+    Serial.println();
+    
+    
     return;
 }

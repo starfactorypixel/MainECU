@@ -18,9 +18,10 @@ class test_StateDB
 
     static void InitData(StateDB::db_t &record, uint8_t fillLength, uint32_t time = 0)
     {
-        for(uint8_t i = 0; i < fillLength; ++i)
+        // заполняем всю доступную длинну
+        for(uint8_t i = 0; i < test_StateDB::GetMaxData(); ++i)
         {
-            record.data[i] = i + 1;
+            record.data[i] = i;
         }
         record.length = fillLength;
         record.time = time; 
@@ -53,61 +54,62 @@ TEST (StateDB, Init) {
 
 template <typename ReadInterface, typename WriteInterface>
 void TestReadWrite(ReadInterface &read, WriteInterface &write) { 
-    //! То что используется test_StateDB::GetMaxData() вместо индекса - это норм, нет смысла гонять все созможные индексы
+    //! То что используется test_StateDB::GetMaxData() вместо индекса - это норм, нет смысла гонять все возможные индексы
 
+    static const uint32_t time = 10; 
     std::vector<StateDB::db_t> storage;
-    storage.resize(test_StateDB::GetMaxData());
+    storage.resize(test_StateDB::GetMaxData() + 1);
 
-    // запись
-    for (auto len = test_StateDB::GetMaxData(); len > 0; --len)
+    // запись в бд
+    for (auto idx = 0; idx <= test_StateDB::GetMaxData(); ++idx)
     {
         StateDB::db_t record;
-        test_StateDB::InitData(record, test_StateDB::GetMaxData() - len, len);
+        test_StateDB::InitData(record, idx, time);
 
-        EXPECT_TRUE(true == write(len, record));
-        storage[len] = record;
+        EXPECT_TRUE(write(idx, record));
+        storage[idx] = record;
     }
 
-    return;
-
     // чтение
-    for (auto len = test_StateDB::GetMaxData(); len > 0; --len)
+    for (auto idx = 0; idx <= test_StateDB::GetMaxData(); ++idx)
     {
-        StateDB::db_t db_record;
-        EXPECT_TRUE(read(len, db_record));
+        StateDB::db_t db_record{};
+        EXPECT_TRUE(read(idx, db_record));
 
-        const StateDB::db_t& stored_record = storage[len];
+        const StateDB::db_t& stored_record = storage[idx];
+        EXPECT_EQ(stored_record.length, db_record.length);
 
-        // данные  в диапозоне длинны должны совпадать, а запределами длинны быть нулями
-        for (auto len = test_StateDB::GetMaxData(); len > 0; --len)
+        for (auto dataIdx = 0; dataIdx < test_StateDB::GetMaxData(); ++dataIdx)
         {
-            const uint8_t idx = len -1;
-            if (len > stored_record.length)
+            // дата в пределах записанного размера
+            if (dataIdx < stored_record.length)
             {
-                EXPECT_EQ(test_StateDB::GetDataAt(db_record, idx), 0);
+
+                EXPECT_EQ(test_StateDB::GetDataAt(db_record, dataIdx), test_StateDB::GetDataAt(stored_record, dataIdx));
             }
             else
             {
-                EXPECT_EQ(test_StateDB::GetDataAt(db_record, idx), test_StateDB::GetDataAt(stored_record, idx));
+                EXPECT_EQ(test_StateDB::GetDataAt(db_record, dataIdx), 0);                
             }
         }
     }
 
     // попытка перезаписи с тем же временем
-    for (auto len = test_StateDB::GetMaxData(); len > 0; --len)
+    for (auto idx = 0; idx <= test_StateDB::GetMaxData();++idx)
     {
-        EXPECT_FALSE(write(len, storage[len]));
+        EXPECT_FALSE(write(idx, storage[idx]));
     }
+
 
     // попытка перезаписи с инкрементированным временем
-    for (auto len = test_StateDB::GetMaxData(); len > 0; --len)
+    for (auto idx = 0; idx <= test_StateDB::GetMaxData();++idx)
     {           
         StateDB::db_t record;
-        record.time = len + 1;
-        EXPECT_TRUE(write(len - 1, storage[len]));
+        record.time = time + 1;
+        EXPECT_TRUE(write(idx, record));
     }
 
-    // обращение за пределы
+    // обращение за пределы зарезервированного диапозона
     {
         StateDB::db_t record;
         EXPECT_FALSE(write(test_StateDB::GetMaxId() + 1, record));
@@ -136,9 +138,8 @@ TEST (StateDB, SetGetDataPtr) {
         return db.Set(id, obj.data, obj.length, obj.time);
     };
 
-    auto get = [&db](uint16_t id, StateDB::db_t &obj) -> bool {
-        const uint8_t* dataPtr = &obj.data[0]; 
-        return db.Get(id, dataPtr, obj.length, obj.time);
+    auto get = [&db](uint16_t id, StateDB::db_t &obj) -> bool { 
+        return db.Get(id, obj.data, obj.length, obj.time);
     };
 
     TestReadWrite(get, set);

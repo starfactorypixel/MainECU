@@ -76,15 +76,19 @@ class StateDB
             return result;
         }
         
-        bool Get(uint16_t id, const uint8_t*& data, uint8_t &length, uint32_t &time) const
+        bool Get(uint16_t id, uint8_t* data, uint8_t &length, uint32_t &time) const
         {
             bool result = false;
 
             if(id < this->_max_id && this->_db[id].time)
             {
-                data = this->_db[id].data;
-                length = this->_db[id].length;
-                time = this->_db[id].time;
+                auto& item = this->_db[id];
+                for(uint8_t i = 0; i < item.length; ++i)
+                {
+                    data[i] = item.data[i];
+                }
+                length = item.length;
+                time = item.time;
 
                 result = true;
             }

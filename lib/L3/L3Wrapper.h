@@ -76,7 +76,10 @@ class L3Wrapper
 				
 				if(_rx_packet.GetError() < 0)
 				{
-					this->_callback_error(_rx_packet, _rx_packet.GetError());
+					if(this->_callback_error != nullptr)
+					{
+						this->_callback_error(_rx_packet, _rx_packet.GetError());
+					}
 					_rx_packet.Init();
 					
 					// Или метод FlushBuffer() ?

@@ -44,7 +44,7 @@ void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time
 Emulator em(EmulatorOnUpdate);
 //								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
 VirtualDevice<uint32_t> dev_voltage(174,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint32_t>::ALG_MINFADEMAX);
-VirtualDevice<uint8_t>    dev_speed(125,		0,			101,		750,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
+VirtualDevice<uint8_t>    dev_speed(125,		0,			101,		300,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
 VirtualDevice<int32_t>  dev_current(239,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int32_t>::ALG_RANDOM);
 VirtualDevice<bool>       dev_light(513,		0,			1,			5000,		1,			0,			VirtualDevice<bool>::ALG_MINMAX);
 
@@ -62,6 +62,22 @@ void PrintArrayHex(uint8_t *data, uint8_t length, bool prefix = true)
         Serial.print(data[i], HEX);
         Serial.print(" ");
     }
+    
+    return;
+}
+
+void DumpDB()
+{
+    Serial.println("DumpDB: ");
+    DB.Dump([](uint16_t id, StateDB::db_t &obj)
+    {
+        Serial.print(" > ID: "); Serial.print(id); Serial.println(":");
+        Serial.print(" >> Length: "); Serial.print(obj.length); Serial.println(";");
+        Serial.print(" >> Data: "); PrintArrayHex(obj.data, obj.length); Serial.println(";");
+        Serial.print(" >> Time: "); Serial.print(obj.time); Serial.println(";");
+        Serial.println();
+    }, false);
+    Serial.println();
     
     return;
 }
@@ -193,6 +209,12 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
             }
             result = true;
             
+            break;
+        }
+        case 0x1A:
+        {
+            DumpDB();
+
             break;
         }
         default:

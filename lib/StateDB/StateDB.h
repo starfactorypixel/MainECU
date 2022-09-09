@@ -14,6 +14,8 @@ class StateDB
         #pragma pack(push, 1)
         struct db_t
         {
+            uint8_t isset:1;                // Флаг наличия данных в ячейке.
+            uint8_t offset:7;               // ...
             uint8_t data[_max_data];        // Байты данных, как в CAN, или нет?
             uint8_t length;                 // Полезная длина данных.
             uint32_t time;                  // Время последнего изменения данных.
@@ -22,7 +24,7 @@ class StateDB
         
         StateDB()
         {
-            memset(this->_db, 0x00, sizeof(this->_db));
+            memset(&this->_db, 0x00, sizeof(this->_db));
             
             return;
         }
@@ -33,6 +35,7 @@ class StateDB
             
             if(id < this->_max_id && length <= this->_max_data)
             {
+                this->_db[id].isset = 0b1;
                 for(uint8_t i = 0; i < length; ++i)
                 {
                     this->_db[id].data[i] = data[i];
@@ -52,6 +55,7 @@ class StateDB
             
             if(id < this->_max_id && obj.length <= this->_max_data)
             {
+                this->_db[id].isset = obj.isset;
                 for(uint8_t i = 0; i < obj.length; ++i)
                 {
                     this->_db[id].data[i] = obj.data[i];
@@ -69,7 +73,7 @@ class StateDB
         {
             bool result = false;
 
-            if(id < this->_max_id && this->_db[id].time > 0)
+            if(id < this->_max_id && this->_db[id].isset == 0b1)
             {
                 data = &this->_db[id].data[0];
                 length = this->_db[id].length;
@@ -90,7 +94,7 @@ class StateDB
         {
             bool result = false;
             
-            if(id < this->_max_id && this->_db[id].time > 0)
+            if(id < this->_max_id && this->_db[id].isset == 0b1)
             {
                 obj = this->_db[id];
                 
@@ -99,7 +103,37 @@ class StateDB
             
             return result;
         }
-
+        
+        bool Del(uint16_t id, bool force = false)
+        {
+            bool result = false;
+            if(id < this->_max_id)
+            {
+                this->_db[id].isset = 0b0;
+                if(force == true)
+                {
+                    memset(&this->_db[id], 0x00, sizeof(db_t));
+                }
+                
+                result = true;
+            }
+            
+            return result;
+        }
+        
+        void Dump(void (*func)(uint16_t id, db_t &obj), bool all = false)
+        {
+            for(uint16_t i = 0; i < this->_max_id; ++i)
+            {
+                if(all == true || this->_db[i].isset == 0b1)
+                {
+                    func(i, this->_db[i]);
+                }
+            }
+            
+            return;
+        }
+        
     private:
         db_t _db[_max_id];
 

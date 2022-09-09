@@ -111,11 +111,7 @@ class L3Wrapper
 			
 			_tx_packet.Prepare();
 			
-			byte txbyte;
-			while( _tx_packet.GetPacketByte(txbyte) == true )
-			{
-				this->_driver->SendByte(txbyte);
-			}
+			this->_driver->SendBytes( _tx_packet.GetPacketPtr(), _tx_packet.GetPacketLength() );
 			
 			_tx_packet.Init();
 			

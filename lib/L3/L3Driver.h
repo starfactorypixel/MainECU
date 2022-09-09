@@ -11,6 +11,16 @@ class L3Driver
 		virtual uint8_t ReadAvailable() = 0;
 		virtual uint8_t ReadByte() = 0;
 		virtual void SendByte(uint8_t data) = 0;
+		
+		void SendBytes(uint8_t *data, uint8_t length)
+		{
+			for(uint8_t i = 0; i < length; ++i)
+			{
+				this->SendByte( data[i] );
+			}
+			
+			return;
+		}
 };
 
 #ifdef ARDUINO_ARCH_ESP32

@@ -7,6 +7,7 @@
 #include <StateDB.h>
 #include <L2Wrapper.h>
 #include <L3Wrapper.h>
+#include <L3SubscriptionsDB.h>
 
 
 StateDB DB;
@@ -27,7 +28,7 @@ L3Wrapper L3(0, driver_ss);
 bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
 void L3OnError(L3Wrapper::packet_t &packet, int8_t code);
 
-
+L3SubscriptionsDB SubsDB;
 
 
 

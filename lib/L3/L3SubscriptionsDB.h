@@ -10,9 +10,10 @@
 class L3SubscriptionsDB
 {
     static const uint16_t _max_id = 2048;   // Максимальный ID хранимый в БД, от 0 до (_max_id - 1).
-    typedef uint8_t db_t;                   // Тип (размерность) переменной с флагами устройств.
     
     public:
+        
+        typedef uint8_t db_t;               // Тип (размерность) переменной с флагами устройств.
         
         enum DevType_t : db_t
         {
@@ -66,6 +67,23 @@ class L3SubscriptionsDB
                 {
                     result = true;
                 }
+            }
+            
+            return result;
+        }
+        
+        /*
+            Возвращает маску подписанных устройств.
+            > uint16_t id - ID параметра, от 0 до (_max_id - 1);
+            > return - Маска устройств типа db_t;
+        */
+        db_t GetDev(uint16_t id)
+        {
+            db_t result = TYPE_NONE;
+            
+            if(id < this->_max_id)
+            {
+                result = this->_db[id];
             }
             
             return result;

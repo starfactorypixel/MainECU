@@ -21,12 +21,13 @@ void L2OnError(int8_t code);
 
 
 
-L3DriverBluetooth driver_ss;    // Для соединения по BT.
+//L3DriverBluetooth driver_ss;    // Для соединения по BT.
 //L3DriverSerial driver_ss;     // Для соединения по Serial.
-L3Wrapper L3(0, driver_ss);
+//L3Wrapper L3(0, driver_ss);
+L3Wrapper L3(0);
 
-bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
-void L3OnError(L3Wrapper::packet_t &packet, int8_t code);
+bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
+void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
 
 L3SubscriptionsDB SubsDB;
 
@@ -94,6 +95,7 @@ void setup()
     L2.RegCallback(L2OnRX, L2OnError);
     L2.Init();
     
+    L3.AddDevice(L3_DEVTYPE_BLUETOOTH);
     L3.RegCallback(L3OnRX, L3OnError);
     L3.Init();
 
@@ -119,7 +121,7 @@ void loop()
 {
     current_time = millis();
 
-    L3.IncomingByte();
+    L3.Processing(current_time);
     
     
     
@@ -132,7 +134,7 @@ void loop()
 
 
 // Приём пакета по протоколу L3. Реализовано.
-bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
+bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 {
     bool result = false;
     
@@ -191,7 +193,45 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
             
             break;
         }
-        case 0x11:
+
+		// Запрос на регистрацию подсписки на параметр. Param() < 32768 = подписка, Param() > 32767 = отписка.
+		// Если ID подходящий (<2048), то отмечаем флаг в БД подписок и отвечаем с текущим параметром из БД состояний.
+		// Если ID не подходящий (>2048), то отправляем ошибку.
+		case L3_REQTYPE_REGID:
+		{
+			if(request.Param() < 2048)
+			{
+				SubsDB.Set(request.Param(), dev);
+				
+				StateDB::db_t db_obj;
+				DB.Get(request.Param(), db_obj);
+				
+				// Отвечаем текущим значением.
+				response.Type( request.Type() );
+				response.Param( request.Param() );
+				response.PutData( db_obj.data, db_obj.length );
+			}
+			else if( (request.Param() % 32768) < 2048 )
+			{
+				SubsDB.Del( (request.Param() % 32768), dev);
+				
+				// Отвечаем пустым значением. ///// Или ничем не отвечать?
+				response.Type( request.Type() );
+				response.Param( request.Param() );
+			}
+			else
+			{
+				// Отвечаем ошибкой.
+				response.Type(L3_REQTYPE_ERROR);
+				response.Param( request.Param() );
+				response.PutData( 0xEE );
+			}
+			
+			result = true;
+			
+			break;
+		}
+        case 0x19:
         {
             if( DB.Set( request.Param(), data_ptr, request.GetDataLength(), request.GetPacketTime() ) == true )
             {
@@ -233,7 +273,7 @@ bool L3OnRX(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 }
 
 // Ошибка приёма пакета по протоколу L3. Реализовано.
-void L3OnError(L3Wrapper::packet_t &packet, int8_t code)
+void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code)
 {
     
     uint8_t *packet_ptr = packet.GetPacketPtr();

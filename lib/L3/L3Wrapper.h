@@ -4,20 +4,24 @@
 
 #pragma once
 
+#include <L3Constants.h>
 #include <L3Packet.h>
 #include <L3Driver.h>
 
 class L3Wrapper
 {
+	static const uint8_t _max_dev = 4;
+	
 	public:
 		using packet_t = L3Packet<64>;
-		using callback_event_t = bool (*)(packet_t &request, packet_t &response);
-		using callback_error_t = void (*)(packet_t &request, int8_t code);
+		using callback_event_t = bool (*)(L3DevType_t dev, packet_t &request, packet_t &response);
+		using callback_error_t = void (*)(L3DevType_t dev, packet_t &request, int8_t code);
 		
-		L3Wrapper(uint8_t transport, L3Driver &driver) : _driver(&driver)
+		L3Wrapper(uint8_t transport)
 		{
 			this->_transport = transport;
 			
+			/*
 			switch(transport)
 			{
 				case 0x00: { _rx_packet.SetTimeout(25); break; };
@@ -25,18 +29,59 @@ class L3Wrapper
 				case 0x02: { _rx_packet.SetTimeout(25); break; };
 				case 0x03: { _rx_packet.SetTimeout(10); break; };
 			}
+			*/
 			
 			return;
+		}
+
+		bool AddDevice(L3DevType_t type)
+		{
+			bool result = false;
+			
+			if(_dev_obj_idx < _max_dev)
+			{
+				_dev_obj[_dev_obj_idx].type = type;
+				_dev_obj[_dev_obj_idx].state = L3_STATE_IDLE;
+				switch(type)
+				{
+					case L3_DEVTYPE_BLUETOOTH:
+					{
+						_dev_obj[_dev_obj_idx].driver = new L3DriverBluetooth();
+						_dev_obj[_dev_obj_idx].rx_packet.SetTimeout(25);
+						break;
+					}
+					case L3_DEVTYPE_DASHBOARD:
+					{
+						_dev_obj[_dev_obj_idx].driver = new L3DriverSerial();
+						_dev_obj[_dev_obj_idx].rx_packet.SetTimeout(10);
+						break;
+					}
+					case L3_DEVTYPE_COMPUTER:
+					{
+						_dev_obj[_dev_obj_idx].driver = new L3DriverSerial();
+						_dev_obj[_dev_obj_idx].rx_packet.SetTimeout(10);
+						break;
+					}
+				}
+				++_dev_obj_idx;
+				
+				result = true;
+			}
+			
+			return result;
 		}
 		
 		void Init()
 		{
-			this->_driver->Init();
-
+			for(uint8_t i = 0; i < _dev_obj_idx; ++i)
+			{
+				_dev_obj[i].driver->Init();
+			}
+			
 			return;
 		}
 		
-		void RegCallback(callback_event_t event, callback_error_t error = nullptr)
+		void RegCallback(callback_event_t event, callback_error_t error = nullptr)	// Добавить тип устройства
 		{
 			this->_callback_event = event;
 			this->_callback_error = error;
@@ -52,82 +97,134 @@ class L3Wrapper
 		}
 		
 		// В будущем будет заменён на прерывание приёма байта.
-		void IncomingByte()
+		void Processing(uint32_t time)
 		{
-			if( this->_driver->ReadAvailable() > 0 )
+			for(uint8_t i = 0; i < _dev_obj_idx; ++i)
 			{
-				byte incomingByte = this->_driver->ReadByte();
+				_object_t &obj = _dev_obj[i];
 				
-				if( _rx_packet.PutPacketByte(incomingByte, millis()) == true )	// УБРАТЬ millis !!!!
+				if( obj.driver->ReadAvailable() > 0 )
 				{
-					// По прерыванию выполняем есь код выше, - Читаем полученный байт, вставляем его в пакет с указанием времени.
-					// Код ниже выполняем в loop().
-					if( _rx_packet.IsReceived() == true )
-					{
-						if( this->_callback_event(_rx_packet, _tx_packet) == true )
-						{
-							// В колбеке необходимо установить как минимум два параметра: Type и Param.
-							// Данные тоже, если нужно что-то передать.
-							this->_Send();
-						}
-						_rx_packet.Init();
-					}
-				}
-				
-				if(_rx_packet.GetError() < 0)
-				{
-					if(this->_callback_error != nullptr)
-					{
-						this->_callback_error(_rx_packet, _rx_packet.GetError());
-					}
-					_rx_packet.Init();
+					byte incoming_byte = obj.driver->ReadByte();
 					
-					// Или метод FlushBuffer() ?
-					while(this->_driver->ReadAvailable() > 0){ this->_driver->ReadByte(); }
+					if( obj.rx_packet.PutPacketByte(incoming_byte, millis()) == true )
+					{
+						if( obj.rx_packet.IsReceived() == true )
+						{
+							// Тут выполняем все 'системные' вызовы, а всё остальное отправляем в callback.
+							switch ( obj.rx_packet.Type() )
+							{
+								case L3_REQTYPE_HANDSHAKE:
+								{
+									obj.tx_packet.Type( obj.rx_packet.Type() );
+									this->_Send(obj);
+									
+									break;
+								}
+								/*
+								case L3_REQTYPE_REGID:
+								{
+									
+									
+									break;
+								}
+								*/
+								default:
+								{
+									if( _callback_event(obj.type, obj.rx_packet, obj.tx_packet) == true )
+									{
+										this->_Send(obj);
+									}
+									
+									break;
+								}
+							}
+							
+							obj.rx_packet.Init();
+						}
+					}
+					
+					if(obj.rx_packet.GetError() < 0)
+					{
+						if(this->_callback_error != nullptr)
+						{
+							this->_callback_error(obj.type, obj.rx_packet, obj.rx_packet.GetError());
+						}
+						obj.rx_packet.Init();
+						
+						// Или метод FlushBuffer() ?
+						while(obj.driver->ReadAvailable() > 0){ obj.driver->ReadByte(); }
+					}
 				}
 			}
 			
 			return;
 		}
 		
-		void Send(uint8_t type, uint16_t param, byte *data, uint8_t length)
+		void Send(uint8_t id_dev, uint8_t type, uint16_t param, byte *data, uint8_t length)	// *&data
 		{
-			_tx_packet.Type(type);
-			_tx_packet.Param(param);
-			for(int8_t i = 0; i < length; ++i)
+			if(id_dev < _max_dev)
 			{
-				_tx_packet.PutData(data[i]);
+				_object_t &obj = _dev_obj[id_dev];
+				
+				obj.tx_packet.Type(type);
+				obj.tx_packet.Param(param);
+				for(int8_t i = 0; i < length; ++i)
+				{
+					obj.tx_packet.PutData(data[i]);
+				}
+				this->_Send(obj);
 			}
-			this->_Send();
 			
 			return;
 		}
 	
 	private:
-		void _Send()
+
+		// Вот как перенести это ниже _Send() избавится от ошибки невидимости..
+		struct _object_t
 		{
-			_tx_packet.Transport(this->_transport);
-			_tx_packet.Direction(0x01);
+			L3DevType_t type;		// Тип устройства.
+			L3State_t state;		// Состояние устройства.
+			L3Driver *driver;		// Объект низкоуровневого драйвера устройства.
+			packet_t rx_packet;		// Объект принимаемого пакета.
+			packet_t tx_packet;		// Объект отправляемого пакета.
+		};
+		
+		void _Send(_object_t &obj)
+		{
 			
-			if(this->_urgent_data == true) _tx_packet.Urgent(1);
+			obj.tx_packet.Transport(this->_transport);
+			obj.tx_packet.Direction(0x01);
+			
+			if(this->_urgent_data == true) obj.tx_packet.Urgent(1);
 			this->_urgent_data = false;
 			
-			_tx_packet.Prepare();
+			obj.tx_packet.Prepare();
 			
-			this->_driver->SendBytes( _tx_packet.GetPacketPtr(), _tx_packet.GetPacketLength() );
+			obj.driver->SendBytes( obj.tx_packet.GetPacketPtr(), obj.tx_packet.GetPacketLength() );
 			
-			_tx_packet.Init();
+			obj.tx_packet.Init();
 			
 			return;
 		}
 		
-		packet_t _rx_packet;
-		packet_t _tx_packet;
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
 		
-		L3Driver *_driver;
+		//L3Driver *_driver;
 		
 		uint8_t _transport;
 		bool _urgent_data = false;
+
+
+
+		_object_t _dev_obj[_max_dev];
+		uint8_t _dev_obj_idx = 0;
+
+
+		
+
+
+
 };

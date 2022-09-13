@@ -5,7 +5,10 @@
     !!! ТЕСТЫ НЕ ДЕЛАТЬ, УКУШУ (^_^) !!!
 */
 
+#pragma once
+
 #include <string.h>
+#include <L3Constants.h>
 
 class L3SubscriptionsDB
 {
@@ -15,6 +18,7 @@ class L3SubscriptionsDB
         
         typedef uint8_t db_t;               // Тип (размерность) переменной с флагами устройств.
         
+        /*
         enum DevType_t : db_t
         {
             TYPE_NONE = 0b00000000,         // Не люблю нули :|
@@ -23,6 +27,7 @@ class L3SubscriptionsDB
             TYPE_COMPUTER = 0b00000100,     // Бортовой компьютер.
             TYPE_ALL = 0b11111111           // Все устройства.
         };
+        */
         
         L3SubscriptionsDB()
         {
@@ -34,10 +39,10 @@ class L3SubscriptionsDB
         /*
             Устанавливает отметку подписки устройства.
             > uint16_t id - ID параметра, от 0 до (_max_id - 1);
-            > DevType_t dev - Тип устройства;
+            > L3DevType_t dev - Тип устройства;
             > return - true в случае успеха;
         */
-        bool Set(uint16_t id, DevType_t dev)
+        bool Set(uint16_t id, L3DevType_t dev)
         {
             bool result = false;
             
@@ -54,10 +59,10 @@ class L3SubscriptionsDB
         /*
             Возвращает отметку подписки устройства.
             > uint16_t id - ID параметра, от 0 до (_max_id - 1);
-            > DevType_t dev - Тип устройства;
+            > L3DevType_t dev - Тип устройства;
             > return - true в случае успеха;
         */
-        bool Get(uint16_t id, DevType_t dev)
+        bool Get(uint16_t id, L3DevType_t dev)
         {
             bool result = false;
             
@@ -75,11 +80,11 @@ class L3SubscriptionsDB
         /*
             Возвращает маску подписанных устройств.
             > uint16_t id - ID параметра, от 0 до (_max_id - 1);
-            > return - Маска устройств типа db_t;
+            > return - Маска устройств типа L3DevType_t;
         */
         db_t GetDev(uint16_t id)
         {
-            db_t result = TYPE_NONE;
+            db_t result = (db_t)L3_DEVTYPE_NONE;
             
             if(id < this->_max_id)
             {
@@ -92,10 +97,10 @@ class L3SubscriptionsDB
         /*
             Удаляет отметку подписки устройства.
             > uint16_t id - ID параметра, от 0 до (_max_id - 1);
-            > DevType_t dev - Тип устройства;
+            > L3DevType_t dev - Тип устройства;
             > return - true в случае успеха;
         */
-        void Del(uint16_t id, DevType_t dev)
+        void Del(uint16_t id, L3DevType_t dev)
         {
             if(id < this->_max_id)
             {
@@ -107,10 +112,10 @@ class L3SubscriptionsDB
         
         /*
             Удаляет отметку подписки устройства на все ID.
-            > DevType_t dev - Тип устройства;
+            > L3DevType_t dev - Тип устройства;
             > return - true в случае успеха;
         */
-        void DelDev(DevType_t dev)
+        void DelDev(L3DevType_t dev)
         {
             for(db_t &element : this->_db)
             {

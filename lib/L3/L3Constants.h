@@ -6,6 +6,9 @@
 
 #include <string.h>
 
+// Длина полезных данных в пакете L3.
+static const uint8_t L3PacketDataSize = 64;
+
 // Бытовая маска типов L3 устройств.
 enum L3DevType_t : uint8_t
 {
@@ -16,14 +19,14 @@ enum L3DevType_t : uint8_t
     L3_DEVTYPE_ALL = 0b11111111             // Все устройства.
 };
 
-// Состояние L3 протокола.
-enum L3State_t : uint8_t
+// Состояние L3 устройства.                                                                                 // переименовать в L3DevState_t
+enum L3DevState_t : uint8_t
 {
-    L3_STATE_NONE,                          // Не люблю нули :|
-    L3_STATE_IDLE,                          // Ожидания подключения (Handshake).
-    L3_STATE_ACTIVE,                        // Активное состояние.
-    L3_STATE_PING,                          // Запрос ответа от устройства.
-    L3_STATE_TIMEOUT                        // Ответ от устройства не получен длительное время.
+    L3_DEVSTATE_NONE,                          // Не люблю нули :|
+    L3_DEVSTATE_IDLE,                          // Ожидания подключения (Handshake).
+    L3_DEVSTATE_ACTIVE,                        // Активное состояние.
+    L3_DEVSTATE_PING,                          // Запрос ответа от устройства.
+    L3_DEVSTATE_TIMEOUT                        // Ответ от устройства не получен длительное время.
 };
 
 // Тип запроса протокола L3.

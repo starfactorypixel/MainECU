@@ -13,56 +13,23 @@ class L3Wrapper
 	static const uint8_t _max_dev = 4;
 	
 	public:
-		using packet_t = L3Packet<64>;
+		using packet_t = L3Packet<L3PacketDataSize>;
 		using callback_event_t = bool (*)(L3DevType_t dev, packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(L3DevType_t dev, packet_t &request, int8_t code);
 		
-		L3Wrapper(uint8_t transport)
+		L3Wrapper()
 		{
-			this->_transport = transport;
-			
-			/*
-			switch(transport)
-			{
-				case 0x00: { _rx_packet.SetTimeout(25); break; };
-				case 0x01: { _rx_packet.SetTimeout(5);  break; };
-				case 0x02: { _rx_packet.SetTimeout(25); break; };
-				case 0x03: { _rx_packet.SetTimeout(10); break; };
-			}
-			*/
-			
 			return;
 		}
-
-		bool AddDevice(L3DevType_t type)
+		
+		bool AddDevice(L3Driver &driver)
 		{
 			bool result = false;
 			
 			if(_dev_obj_idx < _max_dev)
 			{
-				_dev_obj[_dev_obj_idx].type = type;
-				_dev_obj[_dev_obj_idx].state = L3_STATE_IDLE;
-				switch(type)
-				{
-					case L3_DEVTYPE_BLUETOOTH:
-					{
-						_dev_obj[_dev_obj_idx].driver = new L3DriverBluetooth();
-						_dev_obj[_dev_obj_idx].rx_packet.SetTimeout(25);
-						break;
-					}
-					case L3_DEVTYPE_DASHBOARD:
-					{
-						_dev_obj[_dev_obj_idx].driver = new L3DriverSerial();
-						_dev_obj[_dev_obj_idx].rx_packet.SetTimeout(10);
-						break;
-					}
-					case L3_DEVTYPE_COMPUTER:
-					{
-						_dev_obj[_dev_obj_idx].driver = new L3DriverSerial();
-						_dev_obj[_dev_obj_idx].rx_packet.SetTimeout(10);
-						break;
-					}
-				}
+				_dev_obj[_dev_obj_idx].state = L3_DEVSTATE_IDLE;
+				_dev_obj[_dev_obj_idx].driver = &driver;
 				++_dev_obj_idx;
 				
 				result = true;
@@ -89,13 +56,6 @@ class L3Wrapper
 			return;
 		}
 		
-		void SetUrgent()
-		{
-			this->_urgent_data = true;
-			
-			return;
-		}
-		
 		// В будущем будет заменён на прерывание приёма байта.
 		void Processing(uint32_t time)
 		{
@@ -103,59 +63,94 @@ class L3Wrapper
 			{
 				_object_t &obj = _dev_obj[i];
 				
-				if( obj.driver->ReadAvailable() > 0 )
+				// Пока не перейдём на работу с регистрами, эмитирует их таким образом //
+				obj.driver->Tick(time);
+				// //
+				
+				if( obj.driver->NeedGetPacket() == true )
 				{
-					byte incoming_byte = obj.driver->ReadByte();
+					obj.driver->GetPacket( obj.rx_packet );
 					
-					if( obj.rx_packet.PutPacketByte(incoming_byte, millis()) == true )
+					if( obj.rx_packet.GetError() == obj.rx_packet.ERROR_NONE )
 					{
-						if( obj.rx_packet.IsReceived() == true )
+						obj.state = L3_DEVSTATE_ACTIVE;
+						obj.ping_attempts = 0;
+						
+						// Тут выполняем все 'системные' вызовы, а всё остальное отправляем в callback.
+						switch ( obj.rx_packet.Type() )
 						{
-							// Тут выполняем все 'системные' вызовы, а всё остальное отправляем в callback.
-							switch ( obj.rx_packet.Type() )
+							// !!!!!!!!!! Сейчас рукопожатие не обязательное. Наверное стоит принудительно не обрабатывать запросы если его не было.
+							case L3_REQTYPE_HANDSHAKE:
 							{
-								case L3_REQTYPE_HANDSHAKE:
+								if( obj.rx_packet.Param() == 0x0000 )
 								{
-									obj.tx_packet.Type( obj.rx_packet.Type() );
-									this->_Send(obj);
-									
-									break;
+									_SendHandshake(obj); break;
 								}
-								/*
-								case L3_REQTYPE_REGID:
+								else if( obj.rx_packet.Param() == 0xFFFF )
 								{
-									
-									
-									break;
+									// Ответ на пинг
 								}
-								*/
-								default:
-								{
-									if( _callback_event(obj.type, obj.rx_packet, obj.tx_packet) == true )
-									{
-										this->_Send(obj);
-									}
-									
-									break;
-								}
+
+								break;
 							}
-							
-							obj.rx_packet.Init();
+							default:
+							{
+								if( _callback_event( obj.driver->GetType(), obj.rx_packet, obj.tx_packet ) == true )
+								{
+									this->_Send(obj);
+								}
+								
+								break;
+							}
 						}
 					}
-					
-					if(obj.rx_packet.GetError() < 0)
+					else
 					{
 						if(this->_callback_error != nullptr)
 						{
-							this->_callback_error(obj.type, obj.rx_packet, obj.rx_packet.GetError());
+							this->_callback_error(obj.driver->GetType(), obj.rx_packet, obj.rx_packet.GetError());
 						}
-						obj.rx_packet.Init();
 						
 						// Или метод FlushBuffer() ?
 						while(obj.driver->ReadAvailable() > 0){ obj.driver->ReadByte(); }
 					}
+					
+					//obj.rx_packet.Init();
 				}
+				
+				
+				if(obj.state == L3_DEVSTATE_ACTIVE)
+				{
+					if( (time - obj.rx_packet.GetPacketTime()) > 1500 )
+					{
+						Serial.println("obj.state == L3_DEVSTATE_ACTIVE. Send Ping");
+						obj.state = L3_DEVSTATE_PING;
+						obj.ping_attempts++;
+						
+						_SendPing(obj);
+					}
+				}
+				else if(obj.state == L3_DEVSTATE_PING)
+				{
+					if( (time - obj.rx_packet.GetPacketTime()) > (1000 * obj.ping_attempts) )
+					{
+						if(obj.ping_attempts == 3)
+						{
+							Serial.println("ping_attempts == 3");
+							_ResetDevice(obj);
+						}
+						else
+						{
+							Serial.println("ping_attempts < 3");
+							obj.ping_attempts++;
+							
+							_SendPing(obj);
+						}
+					}
+				}
+			
+
+				
 			}
 			
 			return;
@@ -178,53 +173,60 @@ class L3Wrapper
 			
 			return;
 		}
-	
+		
 	private:
 
 		// Вот как перенести это ниже _Send() избавится от ошибки невидимости..
 		struct _object_t
 		{
-			L3DevType_t type;		// Тип устройства.
-			L3State_t state;		// Состояние устройства.
+			L3DevState_t state;		// Состояние устройства.
 			L3Driver *driver;		// Объект низкоуровневого драйвера устройства.
 			packet_t rx_packet;		// Объект принимаемого пакета.
 			packet_t tx_packet;		// Объект отправляемого пакета.
+			uint8_t ping_attempts;	// Кол-во попыток получить пинг.
 		};
 		
 		void _Send(_object_t &obj)
 		{
-			
-			obj.tx_packet.Transport(this->_transport);
 			obj.tx_packet.Direction(0x01);
 			
-			if(this->_urgent_data == true) obj.tx_packet.Urgent(1);
-			this->_urgent_data = false;
-			
-			obj.tx_packet.Prepare();
-			
-			obj.driver->SendBytes( obj.tx_packet.GetPacketPtr(), obj.tx_packet.GetPacketLength() );
+			obj.driver->PutPacket( obj.tx_packet );
 			
 			obj.tx_packet.Init();
 			
 			return;
 		}
 		
+		void _SendHandshake(_object_t &obj)
+		{
+			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
+			obj.tx_packet.Param(0x0000);
+			
+			return _Send(obj);
+		}
+		
+		void _SendPing(_object_t &obj)
+		{
+			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
+			obj.tx_packet.Param(0xFFFF);
+			
+			return _Send(obj);
+		}
+		
+		void _ResetDevice(_object_t &obj)
+		{
+			obj.state = L3_DEVSTATE_IDLE;
+			obj.driver->Reset();
+			obj.rx_packet.Init();
+			obj.tx_packet.Init();
+			obj.ping_attempts = 0;
+			
+			return;
+		}
+		
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
-		
-		//L3Driver *_driver;
-		
-		uint8_t _transport;
-		bool _urgent_data = false;
-
-
-
 		_object_t _dev_obj[_max_dev];
 		uint8_t _dev_obj_idx = 0;
-
-
 		
-
-
-
 };

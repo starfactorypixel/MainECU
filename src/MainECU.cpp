@@ -21,10 +21,10 @@ void L2OnError(int8_t code);
 
 
 
-//L3DriverBluetooth driver_ss;    // Для соединения по BT.
+L3DriverBluetooth L3Driver_BT;  // Для соединения по BT.
 //L3DriverSerial driver_ss;     // Для соединения по Serial.
 //L3Wrapper L3(0, driver_ss);
-L3Wrapper L3(0);
+L3Wrapper L3;
 
 bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
 void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
@@ -94,8 +94,9 @@ void setup()
     
     L2.RegCallback(L2OnRX, L2OnError);
     L2.Init();
+
     
-    L3.AddDevice(L3_DEVTYPE_BLUETOOTH);
+    L3.AddDevice(L3Driver_BT);
     L3.RegCallback(L3OnRX, L3OnError);
     L3.Init();
 
@@ -120,6 +121,7 @@ uint32_t tick = 0;
 void loop()
 {
     current_time = millis();
+
 
     L3.Processing(current_time);
     
@@ -312,6 +314,8 @@ void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code)
 		}
 		default:
 		{
+            Serial.print("ERROR: ");
+            Serial.println(code);
 			break;
 		}
 	}

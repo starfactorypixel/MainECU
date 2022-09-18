@@ -1,6 +1,6 @@
 {
-    "files.associations": {
-        "string_view": "cpp",
-        "*.tcc": "cpp"
-    }
+    "cSpell.words": [
+        "bitvalue",
+        "DEVSTATE"
+    ]
 }

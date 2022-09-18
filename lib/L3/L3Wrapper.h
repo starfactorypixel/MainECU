@@ -119,38 +119,49 @@ class L3Wrapper
 				}
 				
 				
-				if(obj.state == L3_DEVSTATE_ACTIVE)
+				switch (obj.state)
 				{
-					if( (time - obj.rx_packet.GetPacketTime()) > 1500 )
+					case L3_DEVSTATE_ACTIVE:
 					{
-						Serial.println("obj.state == L3_DEVSTATE_ACTIVE. Send Ping");
-						obj.state = L3_DEVSTATE_PING;
-						obj.ping_attempts++;
-						
-						_SendPing(obj);
-					}
-				}
-				else if(obj.state == L3_DEVSTATE_PING)
-				{
-					if( (time - obj.rx_packet.GetPacketTime()) > (1000 * obj.ping_attempts) )
-					{
-						if(obj.ping_attempts == 3)
+						if( (time - obj.rx_packet.GetPacketTime()) > 1500 )
 						{
-							Serial.println("ping_attempts == 3");
-							_ResetDevice(obj);
-						}
-						else
-						{
-							Serial.println("ping_attempts < 3");
+							Serial.println("obj.state == L3_DEVSTATE_ACTIVE. Send Ping");
+							obj.state = L3_DEVSTATE_PING;
 							obj.ping_attempts++;
 							
 							_SendPing(obj);
 						}
+						
+						break;
+					}
+					case L3_DEVSTATE_PING:
+					{
+						if( (time - obj.rx_packet.GetPacketTime()) > (1500 * obj.ping_attempts) )
+						{
+							if(obj.ping_attempts == 3)
+							{
+								Serial.println("ping_attempts == 3");
+								obj.state = L3_DEVSTATE_TIMEOUT;
+							}
+							else
+							{
+								Serial.println("ping_attempts < 3");
+								obj.ping_attempts++;
+								
+								_SendPing(obj);
+							}
+						}
+
+						break;
+					}
+					case L3_DEVSTATE_TIMEOUT:
+					{
+						Serial.println("_ResetDevice()");
+						_ResetDevice(obj);
+
+						break;
 					}
 				}
-			
-
-				
 			}
 			
 			return;

@@ -19,7 +19,7 @@ enum L3DevType_t : uint8_t
     L3_DEVTYPE_ALL = 0b11111111             // Все устройства.
 };
 
-// Состояние L3 устройства.                                                                                 // переименовать в L3DevState_t
+// Состояние L3 устройства.
 enum L3DevState_t : uint8_t
 {
     L3_DEVSTATE_NONE,                          // Не люблю нули :|

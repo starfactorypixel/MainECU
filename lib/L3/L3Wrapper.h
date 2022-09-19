@@ -4,130 +4,249 @@
 
 #pragma once
 
+#include <L3Constants.h>
 #include <L3Packet.h>
 #include <L3Driver.h>
 
 class L3Wrapper
 {
+	static const uint8_t _max_dev = 4;
+	
 	public:
-		using packet_t = L3Packet<64>;
-		using callback_event_t = bool (*)(packet_t &request, packet_t &response);
-		using callback_error_t = void (*)(packet_t &request, int8_t code);
+		using packet_t = L3Packet<L3PacketDataSize>;
+		using callback_event_t = bool (*)(L3DevType_t dev, packet_t &request, packet_t &response);
+		using callback_error_t = void (*)(L3DevType_t dev, packet_t &request, int8_t code);
+		using callback_reset_t = void (*)(L3DevType_t dev);
 		
-		L3Wrapper(uint8_t transport, L3Driver &driver) : _driver(&driver)
+		L3Wrapper()
 		{
-			this->_transport = transport;
+			return;
+		}
+		
+		bool AddDevice(L3Driver &driver)
+		{
+			bool result = false;
 			
-			switch(transport)
+			if(_dev_obj_idx < _max_dev)
 			{
-				case 0x00: { _rx_packet.SetTimeout(25); break; };
-				case 0x01: { _rx_packet.SetTimeout(5);  break; };
-				case 0x02: { _rx_packet.SetTimeout(25); break; };
-				case 0x03: { _rx_packet.SetTimeout(10); break; };
+				_dev_obj[_dev_obj_idx].state = L3_DEVSTATE_IDLE;
+				_dev_obj[_dev_obj_idx].driver = &driver;
+				++_dev_obj_idx;
+				
+				result = true;
 			}
 			
-			return;
+			return result;
 		}
 		
 		void Init()
 		{
-			this->_driver->Init();
-
+			for(uint8_t i = 0; i < _dev_obj_idx; ++i)
+			{
+				_dev_obj[i].driver->Init();
+			}
+			
 			return;
 		}
 		
-		void RegCallback(callback_event_t event, callback_error_t error = nullptr)
+		void RegCallback(callback_event_t event, callback_error_t error, callback_reset_t reset)
 		{
 			this->_callback_event = event;
 			this->_callback_error = error;
+			this->_callback_reset = reset;
 
-			return;
-		}
-		
-		void SetUrgent()
-		{
-			this->_urgent_data = true;
-			
 			return;
 		}
 		
 		// В будущем будет заменён на прерывание приёма байта.
-		void IncomingByte()
+		void Processing(uint32_t time)
 		{
-			if( this->_driver->ReadAvailable() > 0 )
+			for(uint8_t i = 0; i < _dev_obj_idx; ++i)
 			{
-				byte incomingByte = this->_driver->ReadByte();
+				_object_t &obj = _dev_obj[i];
 				
-				if( _rx_packet.PutPacketByte(incomingByte, millis()) == true )	// УБРАТЬ millis !!!!
-				{
-					// По прерыванию выполняем есь код выше, - Читаем полученный байт, вставляем его в пакет с указанием времени.
-					// Код ниже выполняем в loop().
-					if( _rx_packet.IsReceived() == true )
-					{
-						if( this->_callback_event(_rx_packet, _tx_packet) == true )
-						{
-							// В колбеке необходимо установить как минимум два параметра: Type и Param.
-							// Данные тоже, если нужно что-то передать.
-							this->_Send();
-						}
-						_rx_packet.Init();
-					}
-				}
+				// Пока не перейдём на работу с регистрами, эмитирует их таким образом //
+				obj.driver->Tick(time);
+				// //
 				
-				if(_rx_packet.GetError() < 0)
+				if( obj.driver->NeedGetPacket() == true )
 				{
-					if(this->_callback_error != nullptr)
-					{
-						this->_callback_error(_rx_packet, _rx_packet.GetError());
-					}
-					_rx_packet.Init();
+					obj.driver->GetPacket( obj.rx_packet );
 					
-					// Или метод FlushBuffer() ?
-					while(this->_driver->ReadAvailable() > 0){ this->_driver->ReadByte(); }
+					if( obj.rx_packet.GetError() == obj.rx_packet.ERROR_NONE )
+					{
+						obj.state = L3_DEVSTATE_ACTIVE;
+						obj.ping_attempts = 0;
+						
+						// Тут выполняем все 'системные' вызовы, а всё остальное отправляем в callback.
+						switch ( obj.rx_packet.Type() )
+						{
+							// !!!!!!!!!! Сейчас рукопожатие не обязательное. Наверное стоит принудительно не обрабатывать запросы если его не было.
+							case L3_REQTYPE_HANDSHAKE:
+							{
+								if( obj.rx_packet.Param() == 0x0000 )
+								{
+									_SendHandshake(obj); break;
+								}
+								else if( obj.rx_packet.Param() == 0xFFFF )
+								{
+									// Ответ на пинг
+								}
+
+								break;
+							}
+							default:
+							{
+								if( _callback_event( obj.driver->GetType(), obj.rx_packet, obj.tx_packet ) == true )
+								{
+									this->_Send(obj);
+								}
+								
+								break;
+							}
+						}
+					}
+					else
+					{
+						if(this->_callback_error != nullptr)
+						{
+							this->_callback_error(obj.driver->GetType(), obj.rx_packet, obj.rx_packet.GetError());
+						}
+						
+						// Или метод FlushBuffer() ?
+						while(obj.driver->ReadAvailable() > 0){ obj.driver->ReadByte(); }
+					}
+					
+					//obj.rx_packet.Init();
+				}
+				
+				
+				switch (obj.state)
+				{
+					case L3_DEVSTATE_ACTIVE:
+					{
+						if( (time - obj.rx_packet.GetPacketTime()) > 1500 )
+						{
+							Serial.println("obj.state == L3_DEVSTATE_ACTIVE. Send Ping");
+							obj.state = L3_DEVSTATE_PING;
+							obj.ping_attempts++;
+							
+							_SendPing(obj);
+						}
+						
+						break;
+					}
+					case L3_DEVSTATE_PING:
+					{
+						if( (time - obj.rx_packet.GetPacketTime()) > (1500 * obj.ping_attempts) )
+						{
+							if(obj.ping_attempts == 3)
+							{
+								Serial.println("ping_attempts == 3");
+								obj.state = L3_DEVSTATE_TIMEOUT;
+							}
+							else
+							{
+								Serial.println("ping_attempts < 3");
+								obj.ping_attempts++;
+								
+								_SendPing(obj);
+							}
+						}
+
+						break;
+					}
+					case L3_DEVSTATE_TIMEOUT:
+					{
+						Serial.println("_ResetDevice()");
+						_ResetDevice(obj);
+
+						break;
+					}
 				}
 			}
 			
 			return;
 		}
 		
-		void Send(uint8_t type, uint16_t param, byte *data, uint8_t length)
+		void Send(L3DevType_t dev_type, uint8_t type, uint16_t param, byte *data, uint8_t length)	// *&data
 		{
-			_tx_packet.Type(type);
-			_tx_packet.Param(param);
-			for(int8_t i = 0; i < length; ++i)
+			for(uint8_t i = 0; i < _max_dev; ++i)
 			{
-				_tx_packet.PutData(data[i]);
+				_object_t &obj = _dev_obj[i];
+				if( obj.driver->GetType() == dev_type )
+				{
+					obj.tx_packet.Type(type);
+					obj.tx_packet.Param(param);
+					for(int8_t i = 0; i < length; ++i)
+					{
+						obj.tx_packet.PutData(data[i]);
+					}
+					this->_Send(obj);
+
+					break;;
+				}
 			}
-			this->_Send();
-			
-			return;
-		}
-	
-	private:
-		void _Send()
-		{
-			_tx_packet.Transport(this->_transport);
-			_tx_packet.Direction(0x01);
-			
-			if(this->_urgent_data == true) _tx_packet.Urgent(1);
-			this->_urgent_data = false;
-			
-			_tx_packet.Prepare();
-			
-			this->_driver->SendBytes( _tx_packet.GetPacketPtr(), _tx_packet.GetPacketLength() );
-			
-			_tx_packet.Init();
 			
 			return;
 		}
 		
-		packet_t _rx_packet;
-		packet_t _tx_packet;
+	private:
+
+		// Вот как перенести это ниже _Send() избавится от ошибки невидимости..
+		struct _object_t
+		{
+			L3DevState_t state;		// Состояние устройства.
+			L3Driver *driver;		// Объект низкоуровневого драйвера устройства.
+			packet_t rx_packet;		// Объект принимаемого пакета.
+			packet_t tx_packet;		// Объект отправляемого пакета.
+			uint8_t ping_attempts;	// Кол-во попыток получить пинг.
+		};
+		
+		void _Send(_object_t &obj)
+		{
+			obj.tx_packet.Direction(0x01);
+			
+			obj.driver->PutPacket( obj.tx_packet );
+			
+			obj.tx_packet.Init();
+			
+			return;
+		}
+		
+		void _SendHandshake(_object_t &obj)
+		{
+			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
+			obj.tx_packet.Param(0x0000);
+			
+			return _Send(obj);
+		}
+		
+		void _SendPing(_object_t &obj)
+		{
+			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
+			obj.tx_packet.Param(0xFFFF);
+			
+			return _Send(obj);
+		}
+		
+		void _ResetDevice(_object_t &obj)
+		{
+			obj.state = L3_DEVSTATE_IDLE;
+			obj.driver->Reset();
+			obj.rx_packet.Init();
+			obj.tx_packet.Init();
+			obj.ping_attempts = 0;
+
+			this->_callback_reset( obj.driver->GetType() );
+			
+			return;
+		}
+		
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
+		callback_reset_t _callback_reset;
+		_object_t _dev_obj[_max_dev];
+		uint8_t _dev_obj_idx = 0;
 		
-		L3Driver *_driver;
-		
-		uint8_t _transport;
-		bool _urgent_data = false;
 };

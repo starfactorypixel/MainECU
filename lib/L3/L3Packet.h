@@ -11,14 +11,14 @@
 	  |- [7]   - \
 	  |- [6]   -  3 бита, Версия протокола. Отладочная версия 000, первый релиз 001.
 	  |- [5]   - /
-	  |- [4]   - \
-	  |- [3]   -  2 бита, Тип транспорта. 00 - Raw, 01 - RS485, 10 - Bluetooth, 11 - ...
+	  |- [4]   - Резерв.
+	  |- [3]   - Резерв.
 	  |- [2]   - Резерв.
 	  |- [1]   - Резерв.
 	  |- [0]   - Резерв.
 	[*2]     - Конфиг байт 2.
 	  |- [7]   - Флаг направления: 0 - Запрос (Устройство -> Main ECU), 1 - Ответ (Main ECU -> Устройство).
-	  |- [6]   - Флаг срочных данных.
+	  |- [6]   - Резерв.
 	  |- [5]   - Резерв.
 	  |- [4]   - \
 	  |- [3]   -  \
@@ -38,12 +38,10 @@ struct L3Packet_t
 	uint8_t start_byte;
 	
 	uint8_t version:3;
-	uint8_t transport:2;
-	byte reserve_1:3;
+	byte reserve_1:5;
 	
 	uint8_t direction:1;
-	uint8_t urgent:1;
-	byte reserve_2:1;
+	byte reserve_2:2;
 	uint8_t type:5;
 	
 	uint16_t param;
@@ -55,7 +53,7 @@ struct L3Packet_t
 	uint16_t crc;
 	
 	uint8_t stop_byte;
-} mypacket;
+} packet;
 
 */
 
@@ -127,6 +125,7 @@ class L3Packet
 				this->_packet[i] = parent._packet[i];
 			}
 			this->_timeout = parent._timeout;
+			//this->_transport = parent._transport;
 			this->_error = parent._error;
 			this->_putDataIndex = parent._putDataIndex;
 			this->_getDataIndex = parent._getDataIndex;
@@ -134,7 +133,6 @@ class L3Packet
 			this->_putPacketIndex = parent._putPacketIndex;
 			this->_getPacketIndex = parent._getPacketIndex;
 			this->_packet_size = parent._packet_size;
-			this->_clean = parent._clean;
 			this->_received = parent._received;
 			
 			return *this;
@@ -149,21 +147,22 @@ class L3Packet
 			return;
 		}
 		
-		
+		/*
 		// Установить ID транспорта при передачи, 2 бита.
-		void Transport(uint8_t id)
+		void SetTransport(uint8_t id)
 		{
-			this->_packet[1] |= (id % 0x04) << 3;
+			this->_transport = id % 0x04;
+			//this->_packet[1] |= (id % 0x04) << 3;
 			
 			return;
 		}
 		
 		// Получить ID транспорта при приёме, 2 бита.
-		uint8_t Transport()
+		uint8_t GetTransport()
 		{
 			return ((this->_packet[1] >> 3) & 0x03);
 		}
-		
+		*/
 		
 		// Установить направление передачи при передачи, 1 бит.
 		void Direction(uint8_t bit)
@@ -179,7 +178,7 @@ class L3Packet
 			return ((this->_packet[2] >> 7) & 0x01);
 		}
 		
-		
+		/*
 		// Установить флаг срочных данных при передачи, 1 бит.
 		void Urgent(uint8_t bit)
 		{
@@ -193,7 +192,7 @@ class L3Packet
 		{
 			return ((this->_packet[2] >> 6) & 0x01);
 		}
-		
+		*/
 		
 		// Установить тип пакета при передачи, 5 бит.
 		void Type(uint8_t type)
@@ -285,15 +284,15 @@ class L3Packet
 		
 		
 		// Получить пакет, по-байтно, при передачи пакета.
-		// 	uint8_t &packet - Ссылка на байт, который нужно передать;
+		// 	uint8_t &data - Ссылка на байт, который нужно передать;
 		// 	result - true если байт нужно передавать;
-		bool GetPacketByte(uint8_t &packet)
+		bool GetPacketByte(uint8_t &data)
 		{
 			bool result = false;
 			
 			if(this->_getPacketIndex < this->_packet_size)
 			{
-				packet = this->_packet[this->_getPacketIndex++];
+				data = this->_packet[this->_getPacketIndex++];
 				
 				result = true;
 			}
@@ -310,7 +309,7 @@ class L3Packet
 		{
 			bool result = false;
 			
-			if(time - this->_putPacketLastTime < this->_timeout || this->_clean == true)
+			if(time - this->_putPacketLastTime < this->_timeout || this->_putPacketIndex == 0)
 			{
 				this->_putPacketLastTime = time;
 
@@ -381,11 +380,18 @@ class L3Packet
 			return this->_received;
 		}
 		
+		// Флаг того, что пакет подготовлен к отправке.
+		bool IsPrepared()
+		{
+			return (this->_packet_size > 0);
+		}
 		
 		// Флаг того, что пакет чистый и готов к заполнению.
 		bool IsReady()
 		{
-			return this->_clean;
+			// Нужно проверять на факт того, что пакет чистый и в него ничего не устанавливали.
+			// Нету данных, типа пакета, ID.
+			return true;
 		}
 		
 		
@@ -394,6 +400,7 @@ class L3Packet
 		{
 			this->_packet[0] = this->_start_byte;
 			this->_packet[1] |= (this->_version << 5);
+			//this->_packet[1] |= (this->_transport) << 3;
 			this->_packet[this->_packet[5] + 8] = this->_stop_byte;
 			
 			uint16_t crc = this->_GetCRC16();
@@ -419,7 +426,6 @@ class L3Packet
 			this->_putPacketIndex = 0;
 			this->_getPacketIndex = 0;
 			this->_packet_size = 0;
-			this->_clean = true;
 			this->_received = false;
 			
 			return;
@@ -473,6 +479,7 @@ class L3Packet
 		}
 		
 		uint16_t _timeout;				// Время timeout получения пакета.
+		//uint8_t _transport;				// Тип физического транспорта.
 
 		uint8_t _packet[_maxDataLength + 9];	// Массив пакета данных.
 		error_t _error;					// Ошибка.
@@ -486,6 +493,5 @@ class L3Packet
 		
 		uint8_t _packet_size;			// Размер пакета ( используется при отправки данных С устройства ).
 		
-		bool _clean;					// Флаг того, что пакет очищен и готов.
 		bool _received;					// Флаг того, что пакет получен и проверен.
 };

@@ -11,6 +11,15 @@
 class L3DriverBluetooth final : public L3Driver
 {
 	public:
+		
+		L3DriverBluetooth()
+		{
+			_type = L3_DEVTYPE_BLUETOOTH;
+			_rx_packet.SetTimeout(50);
+			
+			return;
+		}
+		
 		void Init() override
 		{
 			char btDevName[20];

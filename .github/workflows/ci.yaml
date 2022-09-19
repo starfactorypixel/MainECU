@@ -39,4 +39,4 @@ jobs:
           pip install --upgrade platformio
 
       - name: Run PlatformIO
-        run: pio run
+        run: pio run --environment MainECU

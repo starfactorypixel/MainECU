@@ -16,6 +16,7 @@ class L3Wrapper
 		using packet_t = L3Packet<L3PacketDataSize>;
 		using callback_event_t = bool (*)(L3DevType_t dev, packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(L3DevType_t dev, packet_t &request, int8_t code);
+		using callback_reset_t = void (*)(L3DevType_t dev);
 		
 		L3Wrapper()
 		{
@@ -48,10 +49,11 @@ class L3Wrapper
 			return;
 		}
 		
-		void RegCallback(callback_event_t event, callback_error_t error = nullptr)	// Добавить тип устройства
+		void RegCallback(callback_event_t event, callback_error_t error, callback_reset_t reset)
 		{
 			this->_callback_event = event;
 			this->_callback_error = error;
+			this->_callback_reset = reset;
 
 			return;
 		}
@@ -167,19 +169,23 @@ class L3Wrapper
 			return;
 		}
 		
-		void Send(uint8_t id_dev, uint8_t type, uint16_t param, byte *data, uint8_t length)	// *&data
+		void Send(L3DevType_t dev_type, uint8_t type, uint16_t param, byte *data, uint8_t length)	// *&data
 		{
-			if(id_dev < _max_dev)
+			for(uint8_t i = 0; i < _max_dev; ++i)
 			{
-				_object_t &obj = _dev_obj[id_dev];
-				
-				obj.tx_packet.Type(type);
-				obj.tx_packet.Param(param);
-				for(int8_t i = 0; i < length; ++i)
+				_object_t &obj = _dev_obj[i];
+				if( obj.driver->GetType() == dev_type )
 				{
-					obj.tx_packet.PutData(data[i]);
+					obj.tx_packet.Type(type);
+					obj.tx_packet.Param(param);
+					for(int8_t i = 0; i < length; ++i)
+					{
+						obj.tx_packet.PutData(data[i]);
+					}
+					this->_Send(obj);
+
+					break;;
 				}
-				this->_Send(obj);
 			}
 			
 			return;
@@ -231,12 +237,15 @@ class L3Wrapper
 			obj.rx_packet.Init();
 			obj.tx_packet.Init();
 			obj.ping_attempts = 0;
+
+			this->_callback_reset( obj.driver->GetType() );
 			
 			return;
 		}
 		
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
+		callback_reset_t _callback_reset;
 		_object_t _dev_obj[_max_dev];
 		uint8_t _dev_obj_idx = 0;
 		

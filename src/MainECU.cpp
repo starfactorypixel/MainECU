@@ -28,6 +28,7 @@ L3Wrapper L3;
 
 bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
 void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
+void L3OnReset(L3DevType_t dev);
 
 L3SubscriptionsDB SubsDB;
 
@@ -39,9 +40,31 @@ L3SubscriptionsDB SubsDB;
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
-    DB.Set(id, bytes, length, time);
+	DB.Set(id, bytes, length, time);
+	
+	
+	
+	// Не смотри сюда, это брд, ужас и вообще позор всего С++.
+	// Потом перепишу.. Обещаю :'(
+	L3DevType_t subs = (L3DevType_t)SubsDB.GetDev(id);
+	
+	if( subs & L3_DEVTYPE_BLUETOOTH != L3_DEVTYPE_NONE )
+	{
+		L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, bytes, length);
+	}
+	if( subs & L3_DEVTYPE_DASHBOARD != L3_DEVTYPE_NONE )
+	{
+		L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, bytes, length);
+	}
+	if( subs & L3_DEVTYPE_COMPUTER != L3_DEVTYPE_NONE )
+	{
+		L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, bytes, length);
+	}
 
-    return;
+    
+	
+	
+	return;
 }
 Emulator em(EmulatorOnUpdate);
 //								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
@@ -97,7 +120,7 @@ void setup()
 
     
     L3.AddDevice(L3Driver_BT);
-    L3.RegCallback(L3OnRX, L3OnError);
+    L3.RegCallback(L3OnRX, L3OnError, L3OnReset);
     L3.Init();
 
 
@@ -201,7 +224,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 		// Если ID не подходящий (>2048), то отправляем ошибку.
 		case L3_REQTYPE_REGID:
 		{
-			if(request.Param() < 2048)
+			if(request.Param() < 0x07FF)
 			{
 				SubsDB.Set(request.Param(), dev);
 				
@@ -213,11 +236,11 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				response.Param( request.Param() );
 				response.PutData( db_obj.data, db_obj.length );
 			}
-			else if( (request.Param() % 32768) < 2048 )
+			else if( (request.Param() % 0x8000) < 0x07FF )
 			{
-				SubsDB.Del( (request.Param() % 32768), dev);
+				SubsDB.Del( (request.Param() % 0x8000), dev);
 				
-				// Отвечаем пустым значением. ///// Или ничем не отвечать?
+				// Отвечаем пустым значением.
 				response.Type( request.Type() );
 				response.Param( request.Param() );
 			}
@@ -326,7 +349,12 @@ void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code)
     return;
 }
 
-
+void L3OnReset(L3DevType_t dev)
+{
+	SubsDB.DelDev(dev);
+	
+	return;
+}
 
 
 

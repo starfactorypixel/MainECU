@@ -53,7 +53,7 @@ enum L3ReqType_t : uint8_t
     L3_REQTYPE_NONE12 = 0x12,               // 
     L3_REQTYPE_NONE13 = 0x13,               // 
     L3_REQTYPE_NONE14 = 0x14,               // 
-    L3_REQTYPE_NONE15 = 0x15,               // 
+    L3_REQTYPE_EVENTS = 0x15,               // События.
     L3_REQTYPE_NONE16 = 0x16,               // 
     L3_REQTYPE_NONE17 = 0x17,               // 
     L3_REQTYPE_NONE18 = 0x18,               // 

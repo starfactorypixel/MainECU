@@ -41,30 +41,8 @@ L3SubscriptionsDB SubsDB;
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
 	DB.Set(id, bytes, length, time);
-	
-	
-	
-	// Не смотри сюда, это брд, ужас и вообще позор всего С++.
-	// Потом перепишу.. Обещаю :'(
-	L3DevType_t subs = (L3DevType_t)SubsDB.GetDev(id);
-	
-	if( subs & L3_DEVTYPE_BLUETOOTH != L3_DEVTYPE_NONE )
-	{
-		L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, bytes, length);
-	}
-	if( subs & L3_DEVTYPE_DASHBOARD != L3_DEVTYPE_NONE )
-	{
-		L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, bytes, length);
-	}
-	if( subs & L3_DEVTYPE_COMPUTER != L3_DEVTYPE_NONE )
-	{
-		L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, bytes, length);
-	}
-
     
-	
-	
-	return;
+    return;
 }
 Emulator em(EmulatorOnUpdate);
 //								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
@@ -148,6 +126,26 @@ void loop()
 
     L3.Processing(current_time);
     
+    DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
+    {
+        // Не смотри сюда, это бред, ужас и вообще позор всего С++.
+        // Потом перепишу.. Обещаю :'(
+        
+        L3DevType_t subs = (L3DevType_t)SubsDB.GetDev(id);
+        
+        if( subs & L3_DEVTYPE_BLUETOOTH != L3_DEVTYPE_NONE )
+        {
+            L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+        }
+        if( subs & L3_DEVTYPE_DASHBOARD != L3_DEVTYPE_NONE )
+        {
+            L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+        }
+        if( subs & L3_DEVTYPE_COMPUTER != L3_DEVTYPE_NONE )
+        {
+            L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+        }
+    });
     
     
     em.Processing(current_time);

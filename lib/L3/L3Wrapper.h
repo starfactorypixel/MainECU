@@ -125,7 +125,7 @@ class L3Wrapper
 				{
 					case L3_DEVSTATE_ACTIVE:
 					{
-						if( (time - obj.rx_packet.GetPacketTime()) > 1500 )
+						if( (time - obj.rx_packet.GetPacketTime()) > L3DevicePingInterval )
 						{
 							Serial.println("obj.state == L3_DEVSTATE_ACTIVE. Send Ping");
 							obj.state = L3_DEVSTATE_PING;
@@ -138,9 +138,9 @@ class L3Wrapper
 					}
 					case L3_DEVSTATE_PING:
 					{
-						if( (time - obj.rx_packet.GetPacketTime()) > (1500 * obj.ping_attempts) )
+						if( (time - obj.rx_packet.GetPacketTime()) > (L3DevicePingInterval * obj.ping_attempts) )
 						{
-							if(obj.ping_attempts == 3)
+							if(obj.ping_attempts == L3DevicePingCount)
 							{
 								Serial.println("ping_attempts == 3");
 								obj.state = L3_DEVSTATE_TIMEOUT;
@@ -184,7 +184,7 @@ class L3Wrapper
 					}
 					this->_Send(obj);
 
-					break;;
+					break;
 				}
 			}
 			

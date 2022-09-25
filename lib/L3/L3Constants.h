@@ -9,6 +9,12 @@
 // Длина полезных данных в пакете L3.
 static const uint8_t L3PacketDataSize = 64;
 
+// Интервал отправки ping на L3 устроиства.
+static const uint16_t L3DevicePingInterval = 1500;
+
+// Кол-во неудачных запросов ping до кика L3 устроиства.
+static const uint8_t L3DevicePingCount = 3;
+
 // Бытовая маска типов L3 устройств.
 enum L3DevType_t : uint8_t
 {

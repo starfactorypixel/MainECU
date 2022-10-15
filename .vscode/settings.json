@@ -4,6 +4,9 @@
         "DEVSTATE"
     ],
     "files.associations": {
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "*.tcc": "cpp",
+        "fstream": "cpp",
+        "sstream": "cpp"
     }
 }

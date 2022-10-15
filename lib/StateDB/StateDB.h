@@ -134,7 +134,7 @@ class StateDB
 				{
 					func(i, this->_db[i]);
 					
-					this->_db[i].update == 0b0;
+					this->_db[i].update = 0b0;
 				}
 			}
 			

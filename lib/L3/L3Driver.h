@@ -20,7 +20,7 @@ class L3Driver
 		// Временный метод, эмитирующий прерывания.
 		void Tick(uint32_t time)
 		{
-			
+
 			// 'Типа' прерывание по приёму байта.
 			if(ReadAvailable() > 0)
 			{
@@ -34,7 +34,7 @@ class L3Driver
 					}
 				}
 			}
-			
+
 			// 'Типа' прерывание по передачи байта.
 			if( _tx_packet.IsPrepared() == true )
 			{
@@ -42,10 +42,12 @@ class L3Driver
 				if( _tx_packet.GetPacketByte(data) == true )
 				{
 					SendByte(data);
+					//Serial.write(data);
 				}
 				else
 				{
 					_tx_packet.Init();
+					//Serial.write("!");
 				}
 			}
 			
@@ -76,11 +78,27 @@ class L3Driver
 		// Копирует отправляемый пакет из того что передан по ссылке и подготавливает его к отправке.
 		void PutPacket(packet_t &packet)
 		{
+			Serial.println("PutPacket 1");
 			// Временный костыль: Вешаем поток до тех пор, пока предыдущий пакет не будет отправлен полностью.
-			while(_tx_packet.IsReady() == false){}
+			while(_tx_packet.IsReady() == false)
+			{
+				delayMicroseconds(50);
+				
+				/*
+				Serial.println( (_tx_packet.IsPrepared() == true), HEX );
+				Serial.println(_tx_packet.Type(), HEX);
+				Serial.println(_tx_packet.Param(), HEX);
+				Serial.println(_tx_packet.GetDataLength(), HEX);
+				*/
+			}
+			//if(_tx_packet.IsReady() == false) return;
+
+			Serial.println("PutPacket 2");
 
 			_tx_packet = packet;
 			_tx_packet.Prepare();
+
+			Serial.println("PutPacket 9");
 			
 			return;
 		}

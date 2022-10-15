@@ -2,6 +2,8 @@
     Основная программа Main ECU модуля.
 */
 
+#include "soc/rtc_wdt.h"
+
 #include <Arduino.h>
 
 #include <StateDB.h>
@@ -40,7 +42,7 @@ L3SubscriptionsDB SubsDB;
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
-	DB.Set(id, bytes, length, time);
+    DB.Set(id, bytes, length, time);
     
     return;
 }
@@ -87,6 +89,15 @@ void DumpDB()
 
 
 
+void IRAM_ATTR onTimer()
+{
+    L3Driver_BT.Tick( millis() );
+    
+    return;
+}
+
+
+
 void setup()
 {
     Serial.begin(115200);
@@ -111,6 +122,17 @@ void setup()
 
 
 
+    rtc_wdt_protect_off();
+    rtc_wdt_disable();
+
+    hw_timer_t *My_timer = NULL;
+    My_timer = timerBegin(0, 80, true);
+    timerAttachInterrupt(My_timer, &onTimer, true);
+    timerAlarmWrite(My_timer, 1000, true);
+    timerAlarmEnable(My_timer); //Just Enable
+
+
+
 
     
     return;
@@ -130,18 +152,21 @@ void loop()
     {
         // Не смотри сюда, это бред, ужас и вообще позор всего С++.
         // Потом перепишу.. Обещаю :'(
+
         
         L3DevType_t subs = (L3DevType_t)SubsDB.GetDev(id);
-        
-        if( subs & L3_DEVTYPE_BLUETOOTH != L3_DEVTYPE_NONE )
+
+        if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
         {
+            Serial.println(">111");
             L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+            Serial.println("<111");
         }
-        if( subs & L3_DEVTYPE_DASHBOARD != L3_DEVTYPE_NONE )
+        if( (subs & L3_DEVTYPE_DASHBOARD) != L3_DEVTYPE_NONE )
         {
             L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
         }
-        if( subs & L3_DEVTYPE_COMPUTER != L3_DEVTYPE_NONE )
+        if( (subs & L3_DEVTYPE_COMPUTER) != L3_DEVTYPE_NONE )
         {
             L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
         }
@@ -222,14 +247,14 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 		// Если ID не подходящий (>2048), то отправляем ошибку.
 		case L3_REQTYPE_REGID:
 		{
-			if(request.Param() < 0x07FF)
+            if(request.Param() < 0x07FF)
 			{
-				SubsDB.Set(request.Param(), dev);
-				
-				StateDB::db_t db_obj;
+                SubsDB.Set(request.Param(), dev);
+                
+                StateDB::db_t db_obj;
 				DB.Get(request.Param(), db_obj);
-				
-				// Отвечаем текущим значением.
+                
+                // Отвечаем текущим значением.
 				response.Type( request.Type() );
 				response.Param( request.Param() );
 				response.PutData( db_obj.data, db_obj.length );

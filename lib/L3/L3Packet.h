@@ -392,7 +392,7 @@ class L3Packet
 			#warning Implementation required!
 			// Нужно проверять на факт того, что пакет чистый и в него ничего не устанавливали.
 			// Нету данных, типа пакета, ID.
-			return true;
+			return (Type() == 0 && Param() == 0 && GetDataLength() == 0);
 		}
 		
 		

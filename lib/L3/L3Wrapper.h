@@ -66,7 +66,7 @@ class L3Wrapper
 				_object_t &obj = _dev_obj[i];
 				
 				// Пока не перейдём на работу с регистрами, эмитирует их таким образом //
-				obj.driver->Tick(time);
+				//obj.driver->Tick(time);
 				// //
 				
 				if( obj.driver->NeedGetPacket() == true )
@@ -121,6 +121,7 @@ class L3Wrapper
 				}
 				
 				
+				
 				switch (obj.state)
 				{
 					case L3_DEVSTATE_ACTIVE:
@@ -164,6 +165,7 @@ class L3Wrapper
 						break;
 					}
 				}
+				
 			}
 			
 			return;

@@ -91,6 +91,7 @@ class L3Wrapper
 								else if( obj.rx_packet.Param() == 0xFFFF )
 								{
 									// Ответ на пинг
+									Serial.println("Ping received!");
 								}
 
 								break;
@@ -139,7 +140,7 @@ class L3Wrapper
 					}
 					case L3_DEVSTATE_PING:
 					{
-						if( (time - obj.rx_packet.GetPacketTime()) > (L3DevicePingInterval * obj.ping_attempts) )
+						if( (time - obj.rx_packet.GetPacketTime()) > (L3DevicePingInterval * (obj.ping_attempts + 1)) )
 						{
 							if(obj.ping_attempts == L3DevicePingCount)
 							{
@@ -228,6 +229,10 @@ class L3Wrapper
 		{
 			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
 			obj.tx_packet.Param(0xFFFF);
+			
+			uint32_t tmp1 = millis();
+			uint8_t *tmp2 = (uint8_t *) &tmp1;
+			obj.tx_packet.PutData(tmp2, 4);
 			
 			return _Send(obj);
 		}

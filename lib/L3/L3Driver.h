@@ -78,7 +78,7 @@ class L3Driver
 		// Копирует отправляемый пакет из того что передан по ссылке и подготавливает его к отправке.
 		void PutPacket(packet_t &packet)
 		{
-			Serial.println("PutPacket 1");
+			//Serial.println("PutPacket 1");
 			// Временный костыль: Вешаем поток до тех пор, пока предыдущий пакет не будет отправлен полностью.
 			while(_tx_packet.IsReady() == false)
 			{
@@ -93,12 +93,12 @@ class L3Driver
 			}
 			//if(_tx_packet.IsReady() == false) return;
 
-			Serial.println("PutPacket 2");
+			//Serial.println("PutPacket 2");
 
 			_tx_packet = packet;
 			_tx_packet.Prepare();
 
-			Serial.println("PutPacket 9");
+			//Serial.println("PutPacket 9");
 			
 			return;
 		}

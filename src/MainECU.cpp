@@ -158,9 +158,10 @@ void loop()
 
         if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
         {
-            Serial.println(">111");
+            Serial.print("Send id: ");
+            Serial.print(id);
             L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-            Serial.println("<111");
+            Serial.println(" done;");
         }
         if( (subs & L3_DEVTYPE_DASHBOARD) != L3_DEVTYPE_NONE )
         {

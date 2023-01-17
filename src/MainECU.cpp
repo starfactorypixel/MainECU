@@ -10,6 +10,7 @@
 #include <L2Wrapper.h>
 #include <L3Wrapper.h>
 #include <L3SubscriptionsDB.h>
+#include <VirtualValue.h>
 
 
 StateDB DB;
@@ -18,7 +19,7 @@ StateDB DB;
 
 L2Wrapper L2;
 
-bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response);
+bool L2OnRX(ESP32SJA1000Class::packet_t &request, ESP32SJA1000Class::packet_t &response);
 void L2OnError(int8_t code);
 
 
@@ -35,7 +36,7 @@ void L3OnReset(L3DevType_t dev);
 L3SubscriptionsDB SubsDB;
 
 
-
+VirtualValue VV;
 
 
 
@@ -134,6 +135,27 @@ void setup()
 
 
 
+
+    VV.RegHandler(1000, [](VirtualValue::db_t obj)
+    {
+        static int32_t old_value = 0;
+        static uint32_t old_time = 0;
+
+        uint8_t delta_speed = abs( (obj.new_value - old_value) );
+        float tmp = (delta_speed / 3.6) * (obj.new_time - old_time);
+        obj.value = llrintf(tmp);
+
+
+
+    });
+    
+
+
+
+
+
+
+
     
     return;
 }
@@ -145,6 +167,7 @@ void loop()
 {
     current_time = millis();
 
+    L2.Processing(current_time);
 
     L3.Processing(current_time);
     
@@ -383,9 +406,8 @@ void L3OnReset(L3DevType_t dev)
 
 
 
-
 // Приём пакета по протоколу L2. Не реализовано.
-bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
+bool L2OnRX(ESP32SJA1000Class::packet_t &request, ESP32SJA1000Class::packet_t &response)
 {
     bool result = false;
 

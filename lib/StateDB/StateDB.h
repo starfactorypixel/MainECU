@@ -4,6 +4,11 @@
     В данный момент: (1 + 8 + 1 + 4) * 2048 = 26624 = 28КБ SRAM памяти занимает эта БД.
 */
 
+#pragma once
+
+#include <string.h>
+#include <L3Constants.h>
+
 class StateDB
 {
     static const uint16_t _max_id = 2048;   // Максимальный ID хранимый в БД, от 0 до (_max_id - 1).

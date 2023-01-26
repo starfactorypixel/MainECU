@@ -216,7 +216,7 @@ void CANControllerClass::onReceive(on_receive_t callback)
 //  return 0;
 //}
 
-bool CANControllerClass::SendPacket(packet_t packet)
+bool CANControllerClass::SendPacket(packet_t &packet)
 {
   bool result = false;
   

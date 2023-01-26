@@ -406,7 +406,7 @@ void L3OnReset(L3DevType_t dev)
 
 
 
-// Приём пакета по протоколу L2. Не реализовано.
+// Приём пакета по протоколу L2.
 bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
     bool result = false;
@@ -422,7 +422,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
     return result;
 }
 
-// Ошибка приёма пакета по протоколу L2. Не реализовано.
+// Ошибка приёма пакета по протоколу L2.
 void L2OnError(int8_t code)
 {
     

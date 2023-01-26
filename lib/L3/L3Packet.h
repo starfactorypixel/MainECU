@@ -125,7 +125,6 @@ class L3Packet
 				this->_packet[i] = parent._packet[i];
 			}
 			this->_timeout = parent._timeout;
-			//this->_transport = parent._transport;
 			this->_error = parent._error;
 			this->_putDataIndex = parent._putDataIndex;
 			this->_getDataIndex = parent._getDataIndex;
@@ -147,23 +146,7 @@ class L3Packet
 			return;
 		}
 		
-		/*
-		// Установить ID транспорта при передачи, 2 бита.
-		void SetTransport(uint8_t id)
-		{
-			this->_transport = id % 0x04;
-			//this->_packet[1] |= (id % 0x04) << 3;
-			
-			return;
-		}
-		
-		// Получить ID транспорта при приёме, 2 бита.
-		uint8_t GetTransport()
-		{
-			return ((this->_packet[1] >> 3) & 0x03);
-		}
-		*/
-		
+
 		// Установить направление передачи при передачи, 1 бит.
 		void Direction(uint8_t bit)
 		{
@@ -178,21 +161,6 @@ class L3Packet
 			return ((this->_packet[2] >> 7) & 0x01);
 		}
 		
-		/*
-		// Установить флаг срочных данных при передачи, 1 бит.
-		void Urgent(uint8_t bit)
-		{
-			bitWrite(this->_packet[2], 6, bit);
-			
-			return;
-		}
-		
-		// Получить флаг срочных данных при приёме, 1 бит.
-		uint8_t Urgent()
-		{
-			return ((this->_packet[2] >> 6) & 0x01);
-		}
-		*/
 		
 		// Установить тип пакета при передачи, 5 бит.
 		void Type(uint8_t type)
@@ -389,9 +357,6 @@ class L3Packet
 		// Флаг того, что пакет чистый и готов к заполнению.
 		bool IsReady()
 		{
-			#warning Implementation required!
-			// Нужно проверять на факт того, что пакет чистый и в него ничего не устанавливали.
-			// Нету данных, типа пакета, ID.
 			return (Type() == 0 && Param() == 0 && GetDataLength() == 0);
 		}
 		
@@ -401,7 +366,6 @@ class L3Packet
 		{
 			this->_packet[0] = this->_start_byte;
 			this->_packet[1] |= (this->_version << 5);
-			//this->_packet[1] |= (this->_transport) << 3;
 			this->_packet[this->_packet[5] + 8] = this->_stop_byte;
 			
 			uint16_t crc = this->_GetCRC16();
@@ -480,7 +444,6 @@ class L3Packet
 		}
 		
 		uint16_t _timeout;				// Время timeout получения пакета.
-		//uint8_t _transport;				// Тип физического транспорта.
 
 		uint8_t _packet[_maxDataLength + 9];	// Массив пакета данных.
 		error_t _error;					// Ошибка.

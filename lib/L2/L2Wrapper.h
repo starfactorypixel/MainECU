@@ -18,6 +18,12 @@ class L2Wrapper
 		using callback_event_t = bool (*)(packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(int8_t code);
 
+		enum error_t : int8_t
+		{
+			ERR_NONE = 0,
+			ERR_OVERFLOW = -1
+		};
+
 		L2Wrapper()
 		{
 
@@ -59,7 +65,7 @@ class L2Wrapper
 				if(this->_rx_overflow == true)
 				{
 					this->_rx_overflow = false;
-					this->_callback_error(1);
+					this->_callback_error( ERR_OVERFLOW );
 				}
 				
 				packet_t _request;

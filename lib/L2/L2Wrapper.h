@@ -13,17 +13,20 @@ class L2Wrapper
 	static const uint8_t _rx_buff_size = 16;
 	
 	public:
+		using packet_t = ESP32SJA1000Class::packet_t;
 		
-		using callback_event_t = bool (*)(ESP32SJA1000Class::packet_t &request, ESP32SJA1000Class::packet_t &response);
+		using callback_event_t = bool (*)(packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(int8_t code);
 
+		L2Wrapper()
+		{
 
-
+		}
 		
 		void Init()
 		{
 			this->_driver.setPins(GPIO_NUM_4, GPIO_NUM_5);
-			this->_driver.onReceive([&]( ESP32SJA1000Class::packet_t packet )
+			this->_driver.onReceive([&]( packet_t packet )
 			{
 				if( this->_request_buff.Write( packet ) == false )
 				{
@@ -44,11 +47,9 @@ class L2Wrapper
 			return;
 		}
 		
-		bool Send(ESP32SJA1000Class::packet_t packet)
+		bool Send(packet_t packet)
 		{
-            #warning Implementation required!
-
-			return true;
+			return this->_driver.SendPacket(packet);
 		}
 		
 		void Processing(uint32_t time)
@@ -61,13 +62,13 @@ class L2Wrapper
 					this->_callback_error(1);
 				}
 				
-				ESP32SJA1000Class::packet_t _request;
-				ESP32SJA1000Class::packet_t _response;
+				packet_t _request;
+				packet_t _response;
 
 				this->_request_buff.Read(_request);
 				if( this->_callback_event(_request, _response) == true )
 				{
-					this->_Send();
+					this->_driver.SendPacket(_response);
 				}
 			}
 			
@@ -75,27 +76,10 @@ class L2Wrapper
 		}
 
 	private:
-		bool _Send()
-		{
-            #warning Implementation required!
-            
-			return true;
-		}
-
-
-
-		
-		
 		ESP32SJA1000Class _driver;
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
-
-
-
-
-		RingBuffer<16, ESP32SJA1000Class::packet_t> _request_buff;
-
+		
+		RingBuffer<16, packet_t> _request_buff;
 		bool _rx_overflow;
-
-
 };

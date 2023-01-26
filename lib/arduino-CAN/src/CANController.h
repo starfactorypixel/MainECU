@@ -65,7 +65,9 @@ public:
   //int sleep();
   //int wakeup();
 
-protected:
+  bool SendPacket(packet_t packet);
+
+  protected:
   CANControllerClass();
   ~CANControllerClass();
 

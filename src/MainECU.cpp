@@ -19,7 +19,7 @@ StateDB DB;
 
 L2Wrapper L2;
 
-bool L2OnRX(ESP32SJA1000Class::packet_t &request, ESP32SJA1000Class::packet_t &response);
+bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response);
 void L2OnError(int8_t code);
 
 
@@ -407,7 +407,7 @@ void L3OnReset(L3DevType_t dev)
 
 
 // Приём пакета по протоколу L2. Не реализовано.
-bool L2OnRX(ESP32SJA1000Class::packet_t &request, ESP32SJA1000Class::packet_t &response)
+bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
     bool result = false;
 

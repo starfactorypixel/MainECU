@@ -25,6 +25,7 @@ void L2OnError(int8_t code);
 
 
 L3DriverBluetooth L3Driver_BT;  // Для соединения по BT.
+L3DriverUART L3Driver_UART;     // Для соединения по UART (rs485) с бортовым компьютером.
 //L3DriverSerial driver_ss;     // Для соединения по Serial.
 //L3Wrapper L3(0, driver_ss);
 L3Wrapper L3;
@@ -93,6 +94,8 @@ void DumpDB()
 void IRAM_ATTR onTimer()
 {
     L3Driver_BT.Tick( millis() );
+    L3Driver_UART.Tick( millis() );
+    
     
     return;
 }
@@ -111,6 +114,7 @@ void setup()
 
     
     L3.AddDevice(L3Driver_BT);
+    L3.AddDevice(L3Driver_UART);
     L3.RegCallback(L3OnRX, L3OnError, L3OnReset);
     L3.Init();
 

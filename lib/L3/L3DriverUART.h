@@ -4,26 +4,46 @@
 
 #pragma once
 
+#include <HardwareSerial.h>
+
 class L3DriverUART final : public L3Driver
 {
 	public:
+		
+		L3DriverUART()
+		{
+			_type = L3_DEVTYPE_COMPUTER;
+			_rx_packet.SetTimeout(10);
+			
+			return;
+		}
+		
 		void Init() override
 		{
+			SerialUART = new HardwareSerial(2);
+			SerialUART->begin(115200, SERIAL_8N1, GPIO_NUM_25, GPIO_NUM_26);
+			
 			return;
 		}
 		
 		uint8_t ReadAvailable() override
 		{
-			return 0;
+			return SerialUART->available();
 		}
 		
 		uint8_t ReadByte() override
 		{
-			return 0x00;
+			return SerialUART->read();
 		}
 		
 		void SendByte(uint8_t data) override
 		{
+			SerialUART->write(data);
+			
 			return;
 		}
+
+	private:
+		
+		HardwareSerial *SerialUART;
 };

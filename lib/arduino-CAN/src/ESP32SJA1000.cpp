@@ -431,6 +431,19 @@ void ESP32SJA1000Class::onInterrupt(void* arg)
   ((ESP32SJA1000Class*)arg)->handleInterrupt();
 }
 
+
+bool ESP32SJA1000Class::SendPacket(packet_t &packet)
+{
+  bool result = false;
+  
+  (packet.extended == false) ? beginPacket(packet.address) : beginExtendedPacket(packet.address);
+  write(packet.data, packet.length);
+  result = endPacket();
+  
+  return result;
+}
+
+
 ESP32SJA1000Class CAN;
 
 #endif

@@ -216,13 +216,3 @@ void CANControllerClass::onReceive(on_receive_t callback)
 //  return 0;
 //}
 
-bool CANControllerClass::SendPacket(packet_t &packet)
-{
-  bool result = false;
-  
-  (packet.extended == false) ? beginPacket(packet.address) : beginExtendedPacket(packet.address);
-  write(packet.data, packet.length);
-  result = endPacket();
-
-  return result;
-}

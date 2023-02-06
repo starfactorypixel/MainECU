@@ -53,7 +53,7 @@ class L2Wrapper
 			return;
 		}
 		
-		bool Send(packet_t packet)
+		bool Send(packet_t &packet)
 		{
 			return this->_driver.SendPacket(packet);
 		}

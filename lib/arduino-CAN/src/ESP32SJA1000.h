@@ -47,6 +47,8 @@ public:
 
   void dumpRegisters(Stream& out);
 
+  bool SendPacket(packet_t &packet);
+
 private:
   void reset();
 

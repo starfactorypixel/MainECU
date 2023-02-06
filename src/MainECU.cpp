@@ -90,11 +90,16 @@ void DumpDB()
 }
 
 
+bool iiii = false;
 
 void IRAM_ATTR onTimer()
 {
-    L3Driver_BT.Tick( millis() );
-    L3Driver_UART.Tick( millis() );
+    if(iiii == false)
+        L3Driver_BT.Tick( millis() );
+    else
+        L3Driver_UART.Tick( millis() );
+    
+    iiii != iiii;
     
     
     return;

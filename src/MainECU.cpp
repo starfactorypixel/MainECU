@@ -90,17 +90,29 @@ void DumpDB()
 }
 
 
-bool iiii = false;
-
+volatile uint8_t timet_iter = 0;
 void IRAM_ATTR onTimer()
 {
-    if(iiii == false)
-        L3Driver_BT.Tick( millis() );
-    else
-        L3Driver_UART.Tick( millis() );
-    
-    iiii != iiii;
-    
+    switch(timet_iter)
+    {
+        case 0:
+        {
+            L3Driver_BT.Tick( millis() );
+            timet_iter = 1;
+            break;
+        }
+        case 1:
+        {
+            L3Driver_UART.Tick( millis() );
+            timet_iter = 2;
+            break;
+        }
+        default:
+        {
+            timet_iter = 0;
+            break;
+        }
+    }
     
     return;
 }

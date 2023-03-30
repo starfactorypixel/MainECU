@@ -44,7 +44,14 @@ VirtualValue VV;
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
-    DB.Set(id, bytes, length, time);
+    uint8_t new_bytes[8];
+    new_bytes[0] = 0x61;
+    for(uint8_t i = 0; i < length; ++i)
+    {
+        new_bytes[i+1] = bytes[i];
+    }
+
+    DB.Set(id, new_bytes, length+1, time);
     
     return;
 }
@@ -236,7 +243,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
     uint8_t *packet_ptr = request.GetPacketPtr();
     uint8_t *data_ptr = request.GetDataPtr();
 
-	Serial.print("RawPacket(");
+	Serial.print("OK RawPacket(");
 	Serial.print(request.GetPacketLength());
 	Serial.print("): ");
     PrintArrayHex(packet_ptr, request.GetPacketLength());
@@ -372,7 +379,7 @@ void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code)
     
     uint8_t *packet_ptr = packet.GetPacketPtr();
 
-	Serial.print("RawPacket(");
+	Serial.print("ER RawPacket(");
 	Serial.print(packet.GetPacketLength());
 	Serial.print("): ");
     PrintArrayHex(packet_ptr, packet.GetPacketLength());
@@ -440,7 +447,10 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
     Serial.print(" > Data: "); PrintArrayHex( request.data, request.length ); Serial.println(";");
     Serial.println();
     
+
+    DB.Set(request.address, request.data, request.length, millis());
     
+
     return result;
 }
 

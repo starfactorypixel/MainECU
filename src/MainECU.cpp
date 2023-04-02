@@ -206,22 +206,28 @@ void loop()
         // Потом перепишу.. Обещаю :'(
 
         
-        L3DevType_t subs = (L3DevType_t)SubsDB.GetDev(id);
+        L3DevType_t subs = SubsDB.GetDev(id);
 
         if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
         {
-            Serial.print("Send id: ");
+            Serial.print("Send BT id: ");
             Serial.print(id);
             L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
             Serial.println(" done;");
         }
         if( (subs & L3_DEVTYPE_DASHBOARD) != L3_DEVTYPE_NONE )
         {
+            Serial.print("Send DB id: ");
+            Serial.print(id);
             L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+            Serial.println(" done;");
         }
         if( (subs & L3_DEVTYPE_COMPUTER) != L3_DEVTYPE_NONE )
         {
+            Serial.print("Send UART id: ");
+            Serial.print(id);
             L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+            Serial.println(" done;");
         }
     });
     
@@ -275,6 +281,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
             
             break;
         }
+        /*
         case 0x01:
         {
             StateDB::db_t db_obj;
@@ -286,7 +293,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
             }
             else
             {
-                response.Type( 0x1E );
+                response.Type(L3_REQTYPE_ERROR);
                 response.Param( request.Param() );
                 response.PutData( 0x01 );
             }
@@ -294,13 +301,14 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
             
             break;
         }
+        */
 
 		// Запрос на регистрацию подсписки на параметр. Param() < 32768 = подписка, Param() > 32767 = отписка.
 		// Если ID подходящий (<2048), то отмечаем флаг в БД подписок и отвечаем с текущим параметром из БД состояний.
 		// Если ID не подходящий (>2048), то отправляем ошибку.
-		case L3_REQTYPE_REGID:
+		case L3_REQTYPE_SUBSCRIBE:
 		{
-            if(request.Param() < 0x07FF)
+            if(request.Param() < 0x0800)
 			{
                 SubsDB.Set(request.Param(), dev);
                 
@@ -312,7 +320,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				response.Param( request.Param() );
 				response.PutData( db_obj.data, db_obj.length );
 			}
-			else if( (request.Param() % 0x8000) < 0x07FF )
+			else if( (request.Param() % 0x8000) < 0x0800 )
 			{
 				SubsDB.Del( (request.Param() % 0x8000), dev);
 				
@@ -332,6 +340,34 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 			
 			break;
 		}
+
+        // Событие с телефона.
+        case L3_REQTYPE_EVENTS:
+        {
+            if(request.Param() < 0x0800)
+            {
+                SubsDB.Set(request.Param(), dev, true);
+
+                L2Wrapper::packet_t can_packet = { request.Param(), false, false, 0, request.GetDataLength() };
+                for(uint8_t i = 0; i < request.GetDataLength(); ++i)
+                {
+                    can_packet.data[i] = data_ptr[i];
+                }
+                
+                L2.Send(can_packet);
+            }
+            else
+			{
+				// Отвечаем ошибкой.
+				response.Type(L3_REQTYPE_ERROR);
+				response.Param( request.Param() );
+				response.PutData( 0xEE );
+			}
+
+            break;
+        }
+        
+        /*
         case 0x19:
         {
             if( DB.Set( request.Param(), data_ptr, request.GetDataLength(), request.GetPacketTime() ) == true )
@@ -353,6 +389,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
             
             break;
         }
+        */
         case 0x1A:
         {
             DumpDB();
@@ -361,7 +398,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
         }
         default:
         {
-            response.Type( 0x1E );
+            response.Type(L3_REQTYPE_ERROR);
             response.Param( request.Param() );
             response.PutData( 0x02 );
             result = true;

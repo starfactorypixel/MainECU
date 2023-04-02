@@ -16,7 +16,7 @@ class L3SubscriptionsDB
     
     public:
         
-        typedef uint8_t db_t;               // Тип (размерность) переменной с флагами устройств.
+        //typedef uint8_t db_t;               // Тип (размерность) переменной с флагами устройств.
         
         /*
         enum DevType_t : db_t
@@ -42,13 +42,14 @@ class L3SubscriptionsDB
             > L3DevType_t dev - Тип устройства;
             > return - true в случае успеха;
         */
-        bool Set(uint16_t id, L3DevType_t dev)
+        bool Set(uint16_t id, L3DevType_t dev, bool temporary = false)
         {
             bool result = false;
             
             if(id < this->_max_id)
             {
-                this->_db[id] |= dev;
+                this->_db[id].devices |= dev;
+                if(temporary == true) this->_db[id].temporary |= dev;
 
                 result = true;
             }
@@ -57,7 +58,7 @@ class L3SubscriptionsDB
         }
         
         /*
-            Возвращает отметку подписки устройства.
+            Возвращает отметку подписки устройства. Не удаляет временную подписку.
             > uint16_t id - ID параметра, от 0 до (_max_id - 1);
             > L3DevType_t dev - Тип устройства;
             > return - true в случае успеха;
@@ -68,7 +69,7 @@ class L3SubscriptionsDB
             
             if(id < this->_max_id)
             {
-                if( (this->_db[id] & dev) == dev )
+                if( (this->_db[id].devices & dev) == dev )
                 {
                     result = true;
                 }
@@ -78,17 +79,18 @@ class L3SubscriptionsDB
         }
         
         /*
-            Возвращает маску подписанных устройств.
+            Возвращает маску подписанных устройств. Удаляет временную подписку.
             > uint16_t id - ID параметра, от 0 до (_max_id - 1);
             > return - Маска устройств типа L3DevType_t;
         */
-        db_t GetDev(uint16_t id)
+        L3DevType_t GetDev(uint16_t id)
         {
-            db_t result = (db_t)L3_DEVTYPE_NONE;
+            L3DevType_t result = L3_DEVTYPE_NONE;
             
             if(id < this->_max_id)
             {
-                result = this->_db[id];
+                result = (L3DevType_t)this->_db[id].devices;
+                this->Del(id, (L3DevType_t)this->_db[id].temporary);
             }
             
             return result;
@@ -104,7 +106,8 @@ class L3SubscriptionsDB
         {
             if(id < this->_max_id)
             {
-                this->_db[id] &= ~dev;
+                this->_db[id].devices &= ~dev;
+                this->_db[id].temporary &= ~dev;
             }
             
             return;
@@ -119,13 +122,18 @@ class L3SubscriptionsDB
         {
             for(db_t &element : this->_db)
             {
-                element &= ~dev;
+                element.devices &= ~dev;
+                element.temporary &= ~dev;
             }
             
             return;
         }
         
     private:
-        db_t _db[_max_id];
+        struct db_t
+        {
+            uint8_t devices;        // Маска устройств, подписанных на ID.
+            uint8_t temporary;      // Маска временных подписок устройств.
+        } _db[_max_id];
         
 };

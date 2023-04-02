@@ -6,6 +6,7 @@
 
 #include <L3Constants.h>
 #include <L3Packet.h>
+#include <L3SubPackets.h>
 #include <L3Driver.h>
 
 class L3Wrapper
@@ -58,16 +59,11 @@ class L3Wrapper
 			return;
 		}
 		
-		// В будущем будет заменён на прерывание приёма байта.
 		void Processing(uint32_t time)
 		{
 			for(uint8_t i = 0; i < _dev_obj_idx; ++i)
 			{
 				_object_t &obj = _dev_obj[i];
-				
-				// Пока не перейдём на работу с регистрами, эмитирует их таким образом //
-				//obj.driver->Tick(time);
-				// //
 				
 				if( obj.driver->NeedGetPacket() == true )
 				{
@@ -82,11 +78,11 @@ class L3Wrapper
 						switch ( obj.rx_packet.Type() )
 						{
 							// !!!!!!!!!! Сейчас рукопожатие не обязательное. Наверное стоит принудительно не обрабатывать запросы если его не было.
-							case L3_REQTYPE_HANDSHAKE:
+							case L3_REQTYPE_SERVICES:
 							{
 								if( obj.rx_packet.Param() == 0x0000 )
 								{
-									_SendHandshake(obj); break;
+									_SendHandshake(obj);
 								}
 								else if( obj.rx_packet.Param() == 0xFFFF )
 								{
@@ -219,7 +215,7 @@ class L3Wrapper
 		
 		void _SendHandshake(_object_t &obj)
 		{
-			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
+			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
 			obj.tx_packet.Param(0x0000);
 			
 			return _Send(obj);
@@ -227,7 +223,7 @@ class L3Wrapper
 		
 		void _SendPing(_object_t &obj)
 		{
-			obj.tx_packet.Type(L3_REQTYPE_HANDSHAKE);
+			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
 			obj.tx_packet.Param(0xFFFF);
 			
 			uint32_t tmp1 = millis();

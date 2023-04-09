@@ -31,7 +31,7 @@ class L2Wrapper
 		
 		void Init()
 		{
-			this->_driver.setPins(GPIO_NUM_4, GPIO_NUM_5);
+			this->_driver.setPins(GPIO_NUM_22, GPIO_NUM_23);
 			this->_driver.onReceive([&]( packet_t packet )
 			{
 				if( this->_request_buff.Write( packet ) == false )
@@ -41,6 +41,9 @@ class L2Wrapper
 				}
 			});
 			this->_driver.begin(500000);
+			
+			pinMode(GPIO_NUM_21, OUTPUT);
+			digitalWrite(GPIO_NUM_21, LOW);
 			
 			return;
 		}

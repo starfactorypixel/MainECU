@@ -3,13 +3,3 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-
-/.idea/
-
-/CMakeLists.txt
-/CMakeListsPrivate.txt
-/cmake-build-*/
-
-/platformio_local.ini
-/platformio_local_template.ini
-авпвапвапвап.cpp

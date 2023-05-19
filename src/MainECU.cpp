@@ -58,10 +58,10 @@ void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time
     return;
 }
 Emulator em(EmulatorOnUpdate);
-//								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
-VirtualDevice<uint16_t>	dev_voltage(0x0044,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint16_t>::ALG_MINFADEMAX);
-VirtualDevice<uint16_t>	dev_speed(0x0106,		0,			101,		300,		1,			2,			VirtualDevice<uint16_t>::ALG_MINFADEMAX);
-VirtualDevice<int16_t>	dev_current(0x0045,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int16_t>::ALG_RANDOM);
+//									id,			min,		max,		interval,	step,		value,		algorithm
+VirtualDevice<uint16_t>	dev_voltage(0x0044,		620,		820,		1000,		7,			743,		VirtualDevice<uint16_t>::ALG_MINFADEMAX);
+VirtualDevice<uint16_t>	dev_speed(0x0106,		0,			1000,		300,		1,			2,			VirtualDevice<uint16_t>::ALG_MINFADEMAX);
+VirtualDevice<int16_t>	dev_current(0x0045,		-1500,		1500,		1000,		20,			-112,		VirtualDevice<int16_t>::ALG_RANDOM);
 //VirtualDevice<uint8_t>	dev_light(0x00E5,		0,			255,		5000,		1,			0,			VirtualDevice<uint8_t>::ALG_MINMAX);	// Стоп сигнал
 VirtualDevice<int16_t>	dev_power(0x0054,		-5000,		5000,		1000,		250,		-1124,		VirtualDevice<int16_t>::ALG_RANDOM);
 

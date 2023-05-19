@@ -10,7 +10,7 @@ class L3DriverUART final : public L3Driver
 {
 	public:
 		
-		L3DriverUART() : SerialUART(2)
+		L3DriverUART() : SerialHW(2)
 		{
 			_type = L3_DEVTYPE_COMPUTER;
 			_rx_packet.SetTimeout(10);
@@ -20,29 +20,36 @@ class L3DriverUART final : public L3Driver
 		
 		void Init() override
 		{
-			SerialUART.begin(115200, SERIAL_8N1, GPIO_NUM_16, GPIO_NUM_17);
+			SerialHW.begin(115200, SERIAL_8N1, GPIO_NUM_16, GPIO_NUM_17);
 			
 			return;
 		}
 		
 		uint8_t ReadAvailable() override
 		{
-			return SerialUART.available();
+			return SerialHW.available();
 		}
 		
 		uint8_t ReadByte() override
 		{
-			return SerialUART.read();
+			return SerialHW.read();
 		}
 		
 		void SendByte(uint8_t data) override
 		{
-			SerialUART.write(data);
+			SerialHW.write(data);
+			
+			return;
+		}
+		
+		void SendBytes(const uint8_t *buffer, uint8_t length) override
+		{
+			SerialHW.write(buffer, length);
 			
 			return;
 		}
 
 	private:
 		
-		HardwareSerial SerialUART;
+		HardwareSerial SerialHW;
 };

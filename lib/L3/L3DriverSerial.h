@@ -32,4 +32,11 @@ class L3DriverSerial final : public L3Driver
 			
 			return;
 		}
+		
+		void SendBytes(const uint8_t *buffer, uint8_t length) override
+		{
+			Serial.write(buffer, length);
+			
+			return;
+		}
 };

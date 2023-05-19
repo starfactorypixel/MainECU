@@ -48,6 +48,13 @@ class L3DriverBluetooth final : public L3Driver
 			return;
 		}
 		
+		void SendBytes(const uint8_t *buffer, uint8_t length) override
+		{
+			SerialBT.write(buffer, length);
+			
+			return;
+		}
+		
 	private:
 		BluetoothSerial SerialBT;
 };

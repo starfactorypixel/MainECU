@@ -11,35 +11,42 @@
 class L3DriverSoftSerial final : public L3Driver
 {
 	public:
-		L3DriverSoftSerial() : mySerial(2, 3)
+		L3DriverSoftSerial() : SerialSoft(2, 3)
 		{
 			return;
 		}
 		
 		void Init() override
 		{
-			mySerial.begin(19200);
+			SerialSoft.begin(19200);
 			
 			return;
 		}
 		
 		uint8_t ReadAvailable() override
 		{
-			return mySerial.available();
+			return SerialSoft.available();
 		}
 		
 		uint8_t ReadByte() override
 		{
-			return mySerial.read();
+			return SerialSoft.read();
 		}
 		
 		void SendByte(uint8_t data) override
 		{
-			mySerial.write(data);
+			SerialSoft.write(data);
+			
+			return;
+		}
+		
+		void SendBytes(const uint8_t *buffer, uint8_t length) override
+		{
+			SerialSoft.write(buffer, length);
 			
 			return;
 		}
 		
 	private:
-		SoftwareSerial mySerial;
+		SoftwareSerial SerialSoft;
 };

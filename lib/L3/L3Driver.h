@@ -15,40 +15,41 @@ class L3Driver
 		virtual uint8_t ReadAvailable() = 0;
 		virtual uint8_t ReadByte() = 0;
 		virtual void SendByte(uint8_t data) = 0;
+		virtual void SendBytes(const uint8_t *buffer, uint8_t length) = 0;
 		void Reset(){};
 		
 		// Временный метод, эмитирующий прерывания.
 		void Tick(uint32_t time)
 		{
-
+			
 			// 'Типа' прерывание по приёму байта.
-			if(ReadAvailable() > 0)
+			// Если хоть что то есть, то принимаем до дого момента как пакет будет полностью получен,
+			// после чего выходим и даём время на остальные обработки.
+			uint8_t rx_data = 0x00;
+			while(ReadAvailable() > 0)
 			{
-				// Пока пакет считается не принятым разрешаем Put, иначе игнорирует прерывание. Увы, может быть потеря, иначе никак.
-				if( _rx_packet.IsReceived() == false )
+				// Если пакет уже принят и ещё не обработан, то игнорируем. Увы, может быть потеря, иначе никак.
+				if(_rx_packet.IsReceived() == true) break;
+				
+				rx_data = ReadByte();
+				if( _rx_packet.PutPacketByte(rx_data, time) == true )
 				{
-					uint8_t incoming_byte = ReadByte();
-					if( _rx_packet.PutPacketByte(incoming_byte, time) == true )
-					{
-						// Nothing?
-					}
+					// Nothing?
 				}
 			}
-
+			
 			// 'Типа' прерывание по передачи байта.
-			if( _tx_packet.IsPrepared() == true )
+			if(_tx_packet.IsPrepared() == true)
 			{
-				uint8_t data;
-				if( _tx_packet.GetPacketByte(data) == true )
+				uint8_t *tx_data_ptr = _tx_packet.GetPacketPtr();
+				SendBytes(tx_data_ptr, _tx_packet.GetPacketLength());
+
+/*				while(_tx_packet.GetPacketByte(inout_byte) == true)
 				{
-					SendByte(data);
-					//Serial.write(data);
+					SendByte(inout_byte);
 				}
-				else
-				{
-					_tx_packet.Init();
-					//Serial.write("!");
-				}
+*/
+				_tx_packet.Init();
 			}
 			
 			return;
@@ -107,17 +108,6 @@ class L3Driver
 		L3DevType_t GetType() const
 		{
 			return _type;
-		}
-		
-		// Утилита, Отправка массива разом.
-		void SendBytes(uint8_t *data, uint8_t length)
-		{
-			for(uint8_t i = 0; i < length; ++i)
-			{
-				this->SendByte( data[i] );
-			}
-			
-			return;
 		}
 		
 	protected:

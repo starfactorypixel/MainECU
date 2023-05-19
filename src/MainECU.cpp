@@ -3,6 +3,8 @@
 */
 
 #include "soc/rtc_wdt.h"
+#include "esp_int_wdt.h"
+#include "esp_task_wdt.h"
 
 #include <Arduino.h>
 
@@ -57,11 +59,11 @@ void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time
 }
 Emulator em(EmulatorOnUpdate);
 //								uint32_t id, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm
-VirtualDevice<uint32_t> dev_voltage(174,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint32_t>::ALG_MINFADEMAX);
-VirtualDevice<uint8_t>    dev_speed(125,		0,			101,		300,		1,			2,			VirtualDevice<uint8_t>::ALG_MINFADEMAX);
-VirtualDevice<int32_t>  dev_current(239,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int32_t>::ALG_RANDOM);
-VirtualDevice<bool>       dev_light(513,		0,			1,			5000,		1,			0,			VirtualDevice<bool>::ALG_MINMAX);
-
+VirtualDevice<uint16_t>	dev_voltage(0x0044,		62000,		82000,		2500,		250,		74320,		VirtualDevice<uint16_t>::ALG_MINFADEMAX);
+VirtualDevice<uint16_t>	dev_speed(0x0106,		0,			101,		300,		1,			2,			VirtualDevice<uint16_t>::ALG_MINFADEMAX);
+VirtualDevice<int16_t>	dev_current(0x0045,		-150000,	150000,		1000,		250,		-1124,		VirtualDevice<int16_t>::ALG_RANDOM);
+//VirtualDevice<uint8_t>	dev_light(0x00E5,		0,			255,		5000,		1,			0,			VirtualDevice<uint8_t>::ALG_MINMAX);	// Стоп сигнал
+VirtualDevice<int16_t>	dev_power(0x0054,		-5000,		5000,		1000,		250,		-1124,		VirtualDevice<int16_t>::ALG_RANDOM);
 
 
 
@@ -100,7 +102,9 @@ void DumpDB()
 volatile uint8_t timet_iter = 0;
 void IRAM_ATTR onTimer()
 {
-    switch(timet_iter)
+	cli();
+	
+	switch(timet_iter)
     {
         case 0:
         {
@@ -119,9 +123,9 @@ void IRAM_ATTR onTimer()
             timet_iter = 0;
             break;
         }
-    }
-    
-    return;
+	}
+	
+	sei();
 }
 
 
@@ -129,7 +133,7 @@ void IRAM_ATTR onTimer()
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial.begin(500000);
     Serial.println("Start Main ECU");
 
     
@@ -148,24 +152,26 @@ void setup()
 	em.RegDevice(dev_voltage);
 	em.RegDevice(dev_speed);
 	em.RegDevice(dev_current);
-	em.RegDevice(dev_light);
+	//em.RegDevice(dev_light);
+	em.RegDevice(dev_power);
 
 
-
+	esp_task_wdt_delete(NULL);
     rtc_wdt_protect_off();
     rtc_wdt_disable();
-
-    hw_timer_t *My_timer = NULL;
+	disableCore0WDT();
+	disableCore1WDT();
+	disableLoopWDT();
+	
+	
+	hw_timer_t *My_timer = NULL;
     My_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(My_timer, &onTimer, true);
-    timerAlarmWrite(My_timer, 1000, true);
-    timerAlarmEnable(My_timer); //Just Enable
-
-
-
-
-
-    VV.RegHandler(1000, [](VirtualValue::db_t obj)
+    timerAlarmWrite(My_timer, 25000, true);
+    timerAlarmEnable(My_timer);
+	
+	
+	VV.RegHandler(1000, [](VirtualValue::db_t obj)
     {
         static int32_t old_value = 0;
         static uint32_t old_time = 0;
@@ -200,15 +206,15 @@ void loop()
 
     L3.Processing(current_time);
     
-    DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
-    {
-        // Не смотри сюда, это бред, ужас и вообще позор всего С++.
-        // Потом перепишу.. Обещаю :'(
-
-        
-        L3DevType_t subs = SubsDB.GetDev(id);
-
-        if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
+	DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
+	{
+		// Не смотри сюда, это бред, ужас и вообще позор всего С++.
+		// Потом перепишу.. Обещаю :'(
+		L3DevType_t subs = SubsDB.GetDev(id);
+		
+		if(subs == L3_DEVTYPE_NONE) return;
+		
+		if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
         {
             Serial.print("Send BT id: ");
             Serial.print(id);

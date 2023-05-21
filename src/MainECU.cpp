@@ -53,6 +53,13 @@ void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time
         new_bytes[i+1] = bytes[i];
     }
 
+	if(id == 0x0106)
+	{
+		new_bytes[3] = new_bytes[1];
+		new_bytes[4] = new_bytes[2];
+		length += 2;
+	}
+
     DB.Set(id, new_bytes, length+1, time);
     
     return;

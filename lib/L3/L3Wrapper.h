@@ -6,7 +6,7 @@
 
 #include <L3Constants.h>
 #include <L3Packet.h>
-#include <L3SubPackets.h>
+#include <L3PacketTypes.h>
 #include <L3Driver.h>
 
 class L3Wrapper
@@ -84,6 +84,26 @@ class L3Wrapper
 								{
 									_SendHandshake(obj);
 								}
+								else if( obj.rx_packet.Param() == 0x0001 )
+								{
+
+									uint8_t *packet_ptr = obj.rx_packet.GetDataPtr();
+									if(packet_ptr[0] == 0x02 && obj.rx_packet.GetDataLength() == sizeof(L3PacketTypes::auth_req_t))
+									{
+										L3PacketTypes::auth_req_t *packet_auth = (L3PacketTypes::auth_req_t *)packet_ptr;
+										if( Security::CheckAuth(packet_auth) == true )
+										{
+											obj.auth = true;
+											_SendSuccessfulAuth(obj);
+										}
+										else
+										{
+											obj.auth = false;
+											_SendFailedAuth(obj);
+										}
+									}
+
+								}
 								else if( obj.rx_packet.Param() == 0xFFFF )
 								{
 									// Ответ на пинг
@@ -94,6 +114,8 @@ class L3Wrapper
 							}
 							default:
 							{
+								if(obj.auth == false) break;
+								
 								if( _callback_event( obj.driver->GetType(), obj.rx_packet, obj.tx_packet ) == true )
 								{
 									this->_Send(obj);
@@ -195,6 +217,7 @@ class L3Wrapper
 		// Вот как перенести это ниже _Send() избавится от ошибки невидимости..
 		struct _object_t
 		{
+			bool auth;				// Флаг авторизированного устройства.
 			L3DevState_t state;		// Состояние устройства.
 			L3Driver *driver;		// Объект низкоуровневого драйвера устройства.
 			packet_t rx_packet;		// Объект принимаемого пакета.
@@ -221,6 +244,38 @@ class L3Wrapper
 			return _Send(obj);
 		}
 		
+		
+		
+		void _SendSuccessfulAuth(_object_t &obj)
+		{
+			L3PacketTypes::auth_resp_t packet;
+			packet.funcID = 0x03;
+			packet.code = 1;
+			packet.time = millis();
+			
+			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
+			obj.tx_packet.Param(0x0001);
+			obj.tx_packet.PutData( (uint8_t *)&packet, sizeof(packet) );
+			
+			return _Send(obj);
+		}
+		
+		void _SendFailedAuth(_object_t &obj)
+		{
+			L3PacketTypes::auth_resp_t packet;
+			packet.funcID = 0x03;
+			packet.code = 0;
+			packet.time = millis();
+			
+			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
+			obj.tx_packet.Param(0x0001);
+			obj.tx_packet.PutData( (uint8_t *)&packet, sizeof(packet) );
+			
+			return _Send(obj);
+		}
+		
+		
+		
 		void _SendPing(_object_t &obj)
 		{
 			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
@@ -235,6 +290,7 @@ class L3Wrapper
 		
 		void _ResetDevice(_object_t &obj)
 		{
+			obj.auth = false;
 			obj.state = L3_DEVSTATE_IDLE;
 			obj.driver->Reset();
 			obj.rx_packet.Init();

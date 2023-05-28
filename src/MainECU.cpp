@@ -8,6 +8,9 @@
 
 #include <Arduino.h>
 
+#include <Config.h>
+#include <Security.h>
+
 #include <StateDB.h>
 #include <L2Wrapper.h>
 #include <L3Wrapper.h>
@@ -143,6 +146,35 @@ void setup()
     Serial.begin(500000);
     Serial.println("Start Main ECU");
 
+	Config::Setup();
+	Security::Setup();
+
+
+	// ------------------------------------------------------------------------------------
+	Serial.print("SN: ");
+	PrintArrayHex(Config::obj.security.serial, sizeof(Config::obj.security.serial));
+	Serial.println();
+
+	Serial.println("EEPROM:");
+	uint8_t data;
+	for(uint16_t i = 0; i < 256 ; ++i)
+	{
+		if(i % 16 == 0)
+		{
+			Serial.printf("\r\n %04X | ", i);
+		}
+
+		if(i % 16 == 8)
+		{
+			Serial.print(" ");
+		}
+		
+		data = EEPROM.readByte(i);
+		Serial.printf("%02X ", data);
+	}
+	Serial.println("\r\n");
+	// ------------------------------------------------------------------------------------
+
     
     L2.RegCallback(L2OnRX, L2OnError);
     L2.Init();
@@ -208,6 +240,9 @@ uint32_t tick = 0;
 void loop()
 {
     current_time = millis();
+
+	Config::Loop(current_time);
+	Security::Loop(current_time);
 
     L2.Processing(current_time);
 

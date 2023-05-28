@@ -75,10 +75,59 @@ namespace L3PacketTypes
 		uint8_t sourceID;			// funcID источника ошибки
 		uint8_t code;				// Код ошибки
 	};
-
-
-
-
-
-
+	
+	
+	// Пакет передачи больших файлов. Инициализация, запрос.
+	struct file_init_req_t
+	{
+		uint8_t funcID;				// 0xF0
+		uint16_t devID;				// ID устройства на шине CAN, или виртуальное устройство, если > 2047
+		uint8_t name[13];			// Имя файла
+		uint32_t size;				// Размер файла в байтах
+	};
+	
+	// Пакет передачи больших файлов. Инициализация, ответ.
+	struct file_init_resp_t
+	{
+		uint8_t funcID;				// 0xF1
+		uint8_t transferID;			// ID передаваемого файла
+		uint32_t chankCount;		// Кол-во чанков с данными
+		uint8_t chankSize;			// Размер одного чайка данных в байтах
+	};
+	
+	// Пакет передачи больших файлов. Отправка, запрос.
+	struct file_send_req_t
+	{
+		uint8_t funcID;				// 0xF2
+		uint8_t transferID;			// ID передаваемого файла
+		uint32_t chankNum;			// Номер передаваемого чанка
+		uint8_t dataLen;			// Длина данных
+		uint8_t data[54];			// Массив данных (Выбирается из расчёта ответа file_init_resp_t.chankSize)
+	};
+	
+	// Пакет передачи больших файлов. Отправка, ответ.
+	struct file_send_resp_t
+	{
+		uint8_t funcID;				// 0xF3
+		uint8_t transferID;			// ID передаваемого файла
+		uint32_t chankNum;			// Номер передаваемого чанка
+		uint8_t code;				// Код ответа, 0 - Ошибка, 1 - Успешно и запрос следующего чанка, 2 - Успешно и окончание передачи (чанки кончились)
+	};
+	
+	// Пакет передачи больших файлов. Завершение, запрос.
+	struct file_fin_req_t
+	{
+		uint8_t funcID;				// 0xF4
+		uint8_t transferID;			// ID передаваемого файла
+		uint32_t crc32;				// Контрольная сумма CRC32 файла
+	};
+	
+	// Пакет передачи больших файлов. Завершение, ответ.
+	struct file_fin_resp_t
+	{
+		uint8_t funcID;				// 0xF5
+		uint8_t transferID;			// ID передаваемого файла
+		uint8_t code;				// Код ответа, 1 - успешно, 0 - ошибка
+	};
+	
 }

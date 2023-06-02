@@ -88,18 +88,24 @@ class L3Wrapper
 								{
 
 									uint8_t *packet_ptr = obj.rx_packet.GetDataPtr();
-									if(packet_ptr[0] == 0x02 && obj.rx_packet.GetDataLength() == sizeof(L3PacketTypes::auth_req_t))
+									if(packet_ptr[0] == 0x02 && obj.rx_packet.GetDataLength() == sizeof(L3PacketTypes::auth_init_req_t))
+									{
+										L3PacketTypes::auth_init_req_t *packet_auth = (L3PacketTypes::auth_init_req_t *)packet_ptr;
+										
+										_SendAuthInit(obj);
+									}
+									else if(packet_ptr[0] == 0x04 && obj.rx_packet.GetDataLength() == sizeof(L3PacketTypes::auth_req_t))
 									{
 										L3PacketTypes::auth_req_t *packet_auth = (L3PacketTypes::auth_req_t *)packet_ptr;
 										if( Security::CheckAuth(packet_auth) == true )
 										{
 											obj.auth = true;
-											_SendSuccessfulAuth(obj);
+											_SendAuthResult(obj, 1);
 										}
 										else
 										{
 											obj.auth = false;
-											_SendFailedAuth(obj);
+											_SendAuthResult(obj, 0);
 										}
 									}
 
@@ -246,12 +252,19 @@ class L3Wrapper
 		
 		
 		
-		void _SendSuccessfulAuth(_object_t &obj)
+		
+		
+		
+		
+		void _SendAuthInit(_object_t &obj)
 		{
-			L3PacketTypes::auth_resp_t packet;
+			L3PacketTypes::auth_init_resp_t packet;
 			packet.funcID = 0x03;
-			packet.code = 1;
-			packet.time = millis();
+			packet.method = 0x01;
+			
+			uint8_t hwmac[8];
+			esp_efuse_mac_get_default(hwmac);
+			memcpy(packet.devID, hwmac, sizeof(packet.devID));
 			
 			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
 			obj.tx_packet.Param(0x0001);
@@ -260,11 +273,11 @@ class L3Wrapper
 			return _Send(obj);
 		}
 		
-		void _SendFailedAuth(_object_t &obj)
+		void _SendAuthResult(_object_t &obj, uint8_t code)
 		{
 			L3PacketTypes::auth_resp_t packet;
-			packet.funcID = 0x03;
-			packet.code = 0;
+			packet.funcID = 0x05;
+			packet.code = code;
 			packet.time = millis();
 			
 			obj.tx_packet.Type(L3_REQTYPE_SERVICES);
@@ -273,7 +286,6 @@ class L3Wrapper
 			
 			return _Send(obj);
 		}
-		
 		
 		
 		void _SendPing(_object_t &obj)

@@ -52,7 +52,7 @@ namespace L3PacketTypes
 		uint8_t devID[6];			// Уникальный ID устройства
 	};
 	
-	// Пакет авторизации, аутификация, запрос Android => Main.
+	// Пакет авторизации, аутентификация, запрос Android => Main.
 	struct auth_req_t
 	{
 		uint8_t funcID;				// 0x04
@@ -61,7 +61,7 @@ namespace L3PacketTypes
 		uint8_t hash_str[20];		// Результат SHA1( sn[8] + rand[16] )
 	};
 	
-	// Пакет авторизации, аутификация, ответ Main => Android.
+	// Пакет авторизации, аутентификация, ответ Main => Android.
 	struct auth_resp_t
 	{
 		uint8_t funcID;				// 0x05

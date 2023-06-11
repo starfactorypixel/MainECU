@@ -8,6 +8,7 @@
 
 #include <Arduino.h>
 
+#include <LoggerLibrary.h>
 #include <Config.h>
 #include <Security.h>
 
@@ -151,19 +152,18 @@ void setup()
 
 
 	// ------------------------------------------------------------------------------------
-	Serial.print("SN: ");
-	PrintArrayHex(Config::obj.security.serial, sizeof(Config::obj.security.serial));
-	Serial.println();
-
-	Serial.println("EEPROM:");
+	Logger.PrintTopic("CORE").Print("Serial Number: ").Print(Config::obj.security.serial, sizeof(Config::obj.security.serial), LOG_OUT_TYPE_HEX).PrintNewLine();
+	
+	DEBUG_LOG_TOPIC("CORE", "EEPROM Dump(%d): ", EEPROM.length());
+	#ifdef DEBUG
 	uint8_t data;
-	for(uint16_t i = 0; i < 256 ; ++i)
+	for(uint16_t i = 0; i < EEPROM.length(); ++i)
 	{
 		if(i % 16 == 0)
 		{
 			Serial.printf("\r\n %04X | ", i);
 		}
-
+		
 		if(i % 16 == 8)
 		{
 			Serial.print(" ");
@@ -172,7 +172,8 @@ void setup()
 		data = EEPROM.readByte(i);
 		Serial.printf("%02X ", data);
 	}
-	Serial.println("\r\n");
+	#endif
+	DEBUG_LOG_SIMPLE(";\n");
 	// ------------------------------------------------------------------------------------
 
     
@@ -206,7 +207,7 @@ void setup()
 	hw_timer_t *My_timer = NULL;
     My_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(My_timer, &onTimer, true);
-    timerAlarmWrite(My_timer, 25000, true);
+    timerAlarmWrite(My_timer, 5000, true);
     timerAlarmEnable(My_timer);
 	
 	
@@ -258,24 +259,21 @@ void loop()
 		
 		if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
         {
-            Serial.print("Send BT id: ");
-            Serial.print(id);
-            L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-            Serial.println(" done;");
+			DEBUG_LOG_TOPIC("L3_Send", "BT id: 0x%04X", id);
+			L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+			DEBUG_LOG_SIMPLE(" done;\n");
         }
         if( (subs & L3_DEVTYPE_DASHBOARD) != L3_DEVTYPE_NONE )
         {
-            Serial.print("Send DB id: ");
-            Serial.print(id);
+			DEBUG_LOG_TOPIC("L3_Send", "DB id: 0x%04X", id);
             L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-            Serial.println(" done;");
+            DEBUG_LOG_SIMPLE(" done;\n");
         }
         if( (subs & L3_DEVTYPE_COMPUTER) != L3_DEVTYPE_NONE )
         {
-            Serial.print("Send UART id: ");
-            Serial.print(id);
+			DEBUG_LOG_TOPIC("L3_Send", "UART id: 0x%04X", id);
             L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-            Serial.println(" done;");
+            DEBUG_LOG_SIMPLE(" done;\n");
         }
     });
     
@@ -291,34 +289,16 @@ void loop()
 // Приём пакета по протоколу L3. Реализовано.
 bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
 {
-    bool result = false;
-    
-    // debug //
-    uint8_t *packet_ptr = request.GetPacketPtr();
-    uint8_t *data_ptr = request.GetDataPtr();
-
-	Serial.print("OK RawPacket(");
-	Serial.print(request.GetPacketLength());
-	Serial.print("): ");
-    PrintArrayHex(packet_ptr, request.GetPacketLength());
-	Serial.println();
+	bool result = false;
 	
-	Serial.print("Type: ");
-	Serial.println( request.Type() );
+	uint8_t *packet_ptr = request.GetPacketPtr();
+	uint8_t *data_ptr = request.GetDataPtr();
 	
-	Serial.print("Param: ");
-	Serial.println( request.Param() );
+	DEBUG_LOG_TOPIC("L3_OnRX", "Type: 0x%02X, Param: 0x%04X, Data(%d): ", request.Type(), request.Param(), request.GetDataLength());
+	DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
+	DEBUG_LOG_SIMPLE(";\n");
 	
-	Serial.print("RawData(");
-	Serial.print(request.GetDataLength());
-	Serial.print("): ");
-    PrintArrayHex(data_ptr, request.GetDataLength());
-	Serial.println();
-    Serial.println();
-    // debug //
-
-    
-    // https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
+	// https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
     switch (request.Type())
     {
         case 0x00:
@@ -461,57 +441,59 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 // Ошибка приёма пакета по протоколу L3. Реализовано.
 void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code)
 {
-    
-    uint8_t *packet_ptr = packet.GetPacketPtr();
-
-	Serial.print("ER RawPacket(");
-	Serial.print(packet.GetPacketLength());
-	Serial.print("): ");
-    PrintArrayHex(packet_ptr, packet.GetPacketLength());
-	Serial.println();
-    
-    switch (code)
+	uint8_t *packet_ptr = packet.GetPacketPtr();
+	
+	DEBUG_LOG_TOPIC("L3_OnEr", "RawPacket(%d): ", packet.GetPacketLength());
+	DEBUG_LOG_ARRAY_HEX(nullptr, packet_ptr, packet.GetPacketLength());
+	DEBUG_LOG_SIMPLE(";\n");
+	
+	switch(code)
 	{
 		case packet.ERROR_FORMAT:
 		{
-			Serial.println("ERROR_FORMAT");
+			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_FORMAT");
 			
 			break;
 		}
 		case packet.ERROR_VERSION:
 		{
-			Serial.println("ERROR_VERSION");
+			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_VERSION");
 			
 			break;
 		}
 		case packet.ERROR_CRC:
 		{
-			Serial.println("ERROR_CRC");
+			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_CRC");
 			
 			break;
 		}
 		case packet.ERROR_OVERFLOW:
 		{
-			Serial.println("ERROR_OVERFLOW");
+			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_OVERFLOW");
+			
+			break;
+		}
+		case packet.ERROR_TIMEOUT:
+		{
+			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_TIMEOUT");
 			
 			break;
 		}
 		default:
 		{
-            Serial.print("ERROR: ");
-            Serial.println(code);
+			DEBUG_LOG_TOPIC("L3_OnEr", "code: %d;\n", code);
+			
 			break;
 		}
 	}
-
-    Serial.println();
-    Serial.println();
-    
-    return;
+	
+	return;
 }
 
 void L3OnReset(L3DevType_t dev)
 {
+	DEBUG_LOG_TOPIC("L3_OnRst", "dev: 0x%02X;\n", dev);
+	
 	SubsDB.DelDev(dev);
 	
 	return;
@@ -524,30 +506,20 @@ void L3OnReset(L3DevType_t dev)
 bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
     bool result = false;
-
-    
-    Serial.println("CAN RX: ");
-    Serial.print(" > Address: "); Serial.print( request.address, HEX ); Serial.println(";");
-    Serial.print(" > Length: "); Serial.print( request.length ); Serial.println(";");
-    Serial.print(" > Data: "); PrintArrayHex( request.data, request.length ); Serial.println(";");
-    Serial.println();
-    
-
-    DB.Set(request.address, request.data, request.length, millis());
-    
-
-    return result;
+	
+	DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.address, request.length);
+	DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
+	DEBUG_LOG_SIMPLE(";\n");
+	
+	DB.Set(request.address, request.data, request.length, millis());
+	
+	return result;
 }
 
 // Ошибка приёма пакета по протоколу L2.
 void L2OnError(int8_t code)
 {
-    
-    
-    Serial.println("CAN ERROR: ");
-    Serial.print(" > Code: "); Serial.print( code ); Serial.println(";");
-    Serial.println();
-    
-    
-    return;
+	DEBUG_LOG_TOPIC("L2_OnEr", "code: %d;\n", code);
+	
+	return;
 }

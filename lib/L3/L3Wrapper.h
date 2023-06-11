@@ -73,7 +73,13 @@ class L3Wrapper
 					{
 						obj.state = L3_DEVSTATE_ACTIVE;
 						obj.ping_attempts = 0;
-						
+
+
+						DEBUG_LOG_TOPIC("L3_ROOT", "RawPacket(%d): ", obj.rx_packet.GetPacketLength());
+						DEBUG_LOG_ARRAY_HEX(nullptr, obj.rx_packet.GetPacketPtr(), obj.rx_packet.GetPacketLength());
+						DEBUG_LOG_SIMPLE(";\n");
+
+
 						// Тут выполняем все 'системные' вызовы, а всё остальное отправляем в callback.
 						switch ( obj.rx_packet.Type() )
 						{
@@ -113,7 +119,7 @@ class L3Wrapper
 								else if( obj.rx_packet.Param() == 0xFFFF )
 								{
 									// Ответ на пинг
-									Serial.println("Ping received!");
+									DEBUG_LOG_TOPIC("L3_ROOT", "Ping RX;\n");
 								}
 
 								break;
@@ -153,7 +159,7 @@ class L3Wrapper
 					{
 						if( (time - obj.rx_packet.GetPacketTime()) > L3DevicePingInterval )
 						{
-							Serial.println("obj.state == L3_DEVSTATE_ACTIVE. Send Ping");
+							DEBUG_LOG_TOPIC("L3_ROOT", "Ping TX;\n");
 							obj.state = L3_DEVSTATE_PING;
 							obj.ping_attempts++;
 							
@@ -168,12 +174,12 @@ class L3Wrapper
 						{
 							if(obj.ping_attempts == L3DevicePingCount)
 							{
-								Serial.println("ping_attempts == 3");
+								DEBUG_LOG_TOPIC("L3_ROOT", "Ping Timeout;\n");
 								obj.state = L3_DEVSTATE_TIMEOUT;
 							}
 							else
 							{
-								Serial.println("ping_attempts < 3");
+								DEBUG_LOG_TOPIC("L3_ROOT", "Ping TX %d;\n", obj.ping_attempts);
 								obj.ping_attempts++;
 								
 								_SendPing(obj);
@@ -184,7 +190,7 @@ class L3Wrapper
 					}
 					case L3_DEVSTATE_TIMEOUT:
 					{
-						Serial.println("_ResetDevice()");
+						DEBUG_LOG_TOPIC("L3_ROOT", "Ping end, _ResetDevice();\n");
 						_ResetDevice(obj);
 
 						break;

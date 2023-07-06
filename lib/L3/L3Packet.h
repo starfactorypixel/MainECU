@@ -180,8 +180,8 @@ class L3Packet
 		// Установить ID параметра при передачи, 16 бит.
 		void Param(uint16_t id)
 		{
-			this->_packet[3] = (id >> 8);
-			this->_packet[4] = (id & 0xFF);
+			this->_packet[3] = lowByte(id);
+			this->_packet[4] = highByte(id);
 			
 			return;
 		}
@@ -189,7 +189,7 @@ class L3Packet
 		// Получить ID параметра при приёме, 16 бит.
 		uint16_t Param()
 		{
-			return ((this->_packet[3] << 8) | this->_packet[4]);
+			return (this->_packet[3] | (this->_packet[4] << 8));
 		}
 		
 		
@@ -369,8 +369,8 @@ class L3Packet
 			this->_packet[this->_packet[5] + 8] = this->_stop_byte;
 			
 			uint16_t crc = this->_GetCRC16();
-			this->_packet[this->_packet[5] + 6] = highByte(crc);
-			this->_packet[this->_packet[5] + 7] = lowByte(crc);
+			this->_packet[this->_packet[5] + 6] = lowByte(crc);
+			this->_packet[this->_packet[5] + 7] = highByte(crc);
 			
 			this->_packet_size = this->_packet[5] + 9;
 			
@@ -407,7 +407,7 @@ class L3Packet
 				if( ((this->_packet[1] >> 5) & 0x07) == this->_version )
 				{
 					uint16_t crc = this->_GetCRC16();
-					if(this->_packet[this->_putPacketIndex - 3] == highByte(crc) && this->_packet[this->_putPacketIndex - 2] == lowByte(crc))
+					if(this->_packet[this->_putPacketIndex - 3] == lowByte(crc) && this->_packet[this->_putPacketIndex - 2] == highByte(crc))
 					{
 						this->_received = true;
 					}

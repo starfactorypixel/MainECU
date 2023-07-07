@@ -395,9 +395,12 @@ void ESP32SJA1000Class::handleInterrupt()
     
     uint8_t i = 0;
     int16_t data;
-    while(data = this->read())
+    #warning Or while(this->available() > 0) ???
+    while(true)
     {
+      data = this->read();
       if(data < 0) break;
+      
       packet.data[i++] = data;
     }
 

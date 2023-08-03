@@ -25,6 +25,8 @@
 
 namespace L3PacketTypes
 {
+
+	#pragma pack(push, 1)
 	
 	// Пакет Ping, Android => Main и Main => Android.
 	struct ping_t
@@ -67,6 +69,22 @@ namespace L3PacketTypes
 		uint8_t funcID;				// 0x05
 		uint8_t code;				// Код ответа, 1 - успешно, 0 - ошибка
 		uint32_t time;				// Uptime Main, мс.
+	};
+
+
+
+
+
+	// Пакет информации о блоке.
+	struct dev_info_t
+	{
+		uint8_t funcID = 0x0F;
+		uint16_t baseID;			// Базовый ID блока
+		uint8_t type;				// Тип платы, 5 бит
+		uint8_t hw_ver;				// Версия платы, 3 бита
+		uint8_t sw_ver;				// Версия программы, 6 бит
+		uint8_t proto_ver;			// Версия протокола CAN, 2 бита
+		uint32_t uptime;			// Uptime блока, мс.
 	};
 	
 
@@ -173,5 +191,7 @@ namespace L3PacketTypes
 		uint8_t transferID;			// ID передаваемого файла
 		uint8_t code;				// Код ответа, 1 - успешно, 0 - ошибка
 	};
+
+	#pragma pack(pop)
 	
 }

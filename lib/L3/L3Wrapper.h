@@ -202,12 +202,15 @@ class L3Wrapper
 			return;
 		}
 		
-		void Send(L3DevType_t dev_type, uint8_t type, uint16_t param, byte *data, uint8_t length)	// *&data
+		void Send(L3DevType_t dev_type, uint8_t type, uint16_t param, byte *data, uint8_t length)
 		{
 			for(uint8_t i = 0; i < _max_dev; ++i)
 			{
 				_object_t &obj = _dev_obj[i];
-				if( obj.driver->GetType() == dev_type )
+				
+				if(obj.auth == false) continue;
+				//if( dev_type == L3_DEVTYPE_ALL || obj.driver->GetType() == dev_type )
+				if(obj.driver->GetType() & dev_type > 0)
 				{
 					obj.tx_packet.Type(type);
 					obj.tx_packet.Param(param);
@@ -216,8 +219,8 @@ class L3Wrapper
 						obj.tx_packet.PutData(data[i]);
 					}
 					this->_Send(obj);
-
-					break;
+					
+					//break;
 				}
 			}
 			

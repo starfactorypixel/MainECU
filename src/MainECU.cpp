@@ -46,7 +46,7 @@ L3SubscriptionsDB SubsDB;
 VirtualValue VV;
 
 
-
+#if defined(USE_EMULATOR)
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
@@ -75,7 +75,7 @@ VirtualDevice<uint16_t>	dev_speed(0x0106,		0,			1000,		300,		1,			2,			VirtualDe
 VirtualDevice<int16_t>	dev_current(0x0045,		-1500,		1500,		1000,		20,			-112,		VirtualDevice<int16_t>::ALG_RANDOM);
 //VirtualDevice<uint8_t>	dev_light(0x00E5,		0,			255,		5000,		1,			0,			VirtualDevice<uint8_t>::ALG_MINMAX);	// Стоп сигнал
 VirtualDevice<int16_t>	dev_power(0x0054,		-5000,		5000,		1000,		250,		-1124,		VirtualDevice<int16_t>::ALG_RANDOM);
-
+#endif
 
 
 
@@ -188,12 +188,13 @@ void setup()
 
 
 
-
+#if defined(USE_EMULATOR)
 	em.RegDevice(dev_voltage);
 	em.RegDevice(dev_speed);
 	em.RegDevice(dev_current);
 	//em.RegDevice(dev_light);
 	em.RegDevice(dev_power);
+#endif
 
 
 	esp_task_wdt_delete(NULL);
@@ -254,6 +255,19 @@ void loop()
 		// Не смотри сюда, это бред, ужас и вообще позор всего С++.
 		// Потом перепишу.. Обещаю :'(
 		L3DevType_t subs = SubsDB.GetDev(id);
+
+		if(id == 0x00E0)
+		{
+			L3PacketTypes::dev_info_t dev_info = {};
+			dev_info.baseID = id;
+			dev_info.type = (obj.data[1] >> 3);
+			dev_info.hw_ver = (obj.data[1] & 0x07);
+			dev_info.sw_ver = (obj.data[2] >> 2);
+			dev_info.proto_ver = (obj.data[2] & 0x03);
+			memcpy((void*)&dev_info.uptime, &obj.data[3], 4);
+			
+			L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_SERVICES, 0x0000, (uint8_t*)&dev_info, sizeof(dev_info));
+		}
 		
 		if(subs == L3_DEVTYPE_NONE) return;
 		
@@ -276,10 +290,11 @@ void loop()
             DEBUG_LOG_SIMPLE(" done;\n");
         }
     });
-    
-    
+
+
+#if defined(USE_EMULATOR)
     em.Processing(current_time);
-    
+#endif
     
 
     return;

@@ -64,6 +64,7 @@ void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time
 		length += 2;
 	}
 
+	DB.SetObjType(id, 0x01);
     DB.Set(id, new_bytes, length+1, time);
     
     return;
@@ -520,13 +521,38 @@ void L3OnReset(L3DevType_t dev)
 // Приём пакета по протоколу L2.
 bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
-    bool result = false;
+	bool result = false;
 	
 	DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.address, request.length);
 	DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
 	DEBUG_LOG_SIMPLE(";\n");
+
+	#warning Remove this after debug !!!1
+	DB.SetObjType(request.address, 0x01);
 	
-	DB.Set(request.address, request.data, request.length, millis());
+	// Получен ответ на запрос типа CAN объекта.
+	if(request.length == 2 && request.data[0] == 0x7A)
+	{
+		DB.SetObjType(request.address, request.data[1]);
+	}
+	// Получен любой другой CAN пакет.
+	else
+	{
+		// Тип CAN объекта неизвестен.
+		if(DB.GetObjType(request.address) == 0)
+		{
+			response.address = request.address;
+			response.extended = false;
+			response.rtr = false;
+			response.dlc = 0;
+			response.length = 1;
+			response.data[0] = 0x3A;
+
+			result = true;
+		}
+		
+		DB.Set(request.address, request.data, request.length, millis());
+	}
 	
 	return result;
 }

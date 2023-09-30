@@ -10,7 +10,7 @@
 
 class L2Wrapper
 {
-	static const uint8_t _rx_buff_size = 16;
+	static const uint8_t _rx_buff_size = 32U;
 	
 	public:
 		using packet_t = ESP32SJA1000Class::packet_t;
@@ -61,9 +61,11 @@ class L2Wrapper
 			return this->_driver.SendPacket(packet);
 		}
 		
-		void Processing(uint32_t time)
+		void Processing(uint32_t &time)
 		{
-			if(this->_request_buff.IsEmpty() == false)
+			struct { packet_t request; packet_t response; } packets;
+			
+			while(this->_request_buff.IsEmpty() == false)
 			{
 				if(this->_rx_overflow == true)
 				{
@@ -71,13 +73,12 @@ class L2Wrapper
 					this->_callback_error( ERR_OVERFLOW );
 				}
 				
-				packet_t _request;
-				packet_t _response;
-
-				this->_request_buff.Read(_request);
-				if( this->_callback_event(_request, _response) == true )
+				memset(&packets, 0x00, sizeof(packets));
+				
+				this->_request_buff.Read(packets.request);
+				if( this->_callback_event(packets.request, packets.response) == true )
 				{
-					this->_driver.SendPacket(_response);
+					this->_driver.SendPacket(packets.response);
 				}
 			}
 			
@@ -89,6 +90,6 @@ class L2Wrapper
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
 		
-		RingBuffer<16, packet_t> _request_buff;
+		RingBuffer<_rx_buff_size, packet_t> _request_buff;
 		bool _rx_overflow;
 };

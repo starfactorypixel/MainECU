@@ -257,7 +257,9 @@ void loop()
 		// Потом перепишу.. Обещаю :'(
 		L3DevType_t subs = SubsDB.GetDev(id);
 
-		if(id == 0x00E0)
+
+/*
+		if(obj.type == 0x02)
 		{
 			L3PacketTypes::dev_info_t dev_info = {};
 			dev_info.baseID = id;
@@ -269,6 +271,8 @@ void loop()
 			
 			L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_SERVICES, 0x0000, (uint8_t*)&dev_info, sizeof(dev_info));
 		}
+*/
+
 		
 		if(subs == L3_DEVTYPE_NONE) return;
 		
@@ -527,13 +531,15 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 	DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
 	DEBUG_LOG_SIMPLE(";\n");
 
-	#warning Remove this after debug !!!1
-	DB.SetObjType(request.address, 0x01);
+	//#warning Remove this after debug !!!1
+	//DB.SetObjType(request.address, 0x01);
 	
 	// Получен ответ на запрос типа CAN объекта.
 	if(request.length == 2 && request.data[0] == 0x7A)
 	{
 		DB.SetObjType(request.address, request.data[1]);
+
+		DEBUG_LOG_TOPIC("L2_DEB", "SET, addr: 0x%04X, type: 0x%02X;\n", request.address, request.data[1]);
 	}
 	// Получен любой другой CAN пакет.
 	else
@@ -549,6 +555,9 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			response.data[0] = 0x3A;
 
 			result = true;
+
+			DEBUG_LOG_TOPIC("L2_DEB", "GET, addr: 0x%04X;\n", request.address);
+			// Отправить 3 раза и подождать минуту.
 		}
 		
 		DB.Set(request.address, request.data, request.length, millis());

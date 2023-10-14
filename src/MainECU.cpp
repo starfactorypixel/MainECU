@@ -17,6 +17,7 @@
 #include <L3Wrapper.h>
 #include <L3SubscriptionsDB.h>
 #include <VirtualValue.h>
+#include <CANScripts.h>
 
 
 StateDB DB;
@@ -44,6 +45,8 @@ L3SubscriptionsDB SubsDB;
 
 
 VirtualValue VV;
+
+CANScripts Scripts(L2);
 
 
 #if defined(USE_EMULATOR)
@@ -253,6 +256,12 @@ void loop()
     
 	DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
 	{
+		
+		
+		Scripts.Processing(id, obj);
+
+
+
 		// Не смотри сюда, это бред, ужас и вообще позор всего С++.
 		// Потом перепишу.. Обещаю :'(
 		L3DevType_t subs = SubsDB.GetDev(id);
@@ -532,7 +541,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 	DEBUG_LOG_SIMPLE(";\n");
 
 	//#warning Remove this after debug !!!1
-	//DB.SetObjType(request.address, 0x01);
+	DB.SetObjType(request.address, 0x01);
 	
 	// Получен ответ на запрос типа CAN объекта.
 	if(request.length == 2 && request.data[0] == 0x7A)
@@ -547,6 +556,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 		// Тип CAN объекта неизвестен.
 		if(DB.GetObjType(request.address) == 0)
 		{
+			/*
 			response.address = request.address;
 			response.extended = false;
 			response.rtr = false;
@@ -555,9 +565,11 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			response.data[0] = 0x3A;
 
 			result = true;
+			
 
 			DEBUG_LOG_TOPIC("L2_DEB", "GET, addr: 0x%04X;\n", request.address);
 			// Отправить 3 раза и подождать минуту.
+			*/
 		}
 		
 		DB.Set(request.address, request.data, request.length, millis());

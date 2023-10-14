@@ -14,7 +14,21 @@ class L2Wrapper
 	
 	public:
 		using packet_t = ESP32SJA1000Class::packet_t;
-		
+		struct packet_v2_t
+		{
+			uint16_t id;
+			uint8_t raw_data_len;
+			union
+			{
+				uint8_t raw_data[8];
+				struct
+				{
+					uint8_t func_id;
+					uint8_t data[7];
+				};
+			};
+		};
+
 		using callback_event_t = bool (*)(packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(int8_t code);
 
@@ -58,7 +72,19 @@ class L2Wrapper
 		
 		bool Send(packet_t &packet)
 		{
+			#warning Delete this && Replace to 'bool Send(packet_v2_t &packet)' && Use orginal library;
 			return this->_driver.SendPacket(packet);
+		}
+		
+		bool Send(packet_v2_t &packet)
+		{
+			bool result = false;
+
+			this->_driver.beginPacket(packet.id);
+			this->_driver.write(packet.raw_data, packet.raw_data_len);
+			result = this->_driver.endPacket();
+			
+			return result;
 		}
 		
 		void Processing(uint32_t &time)

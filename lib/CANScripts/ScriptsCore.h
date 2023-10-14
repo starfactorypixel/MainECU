@@ -12,22 +12,22 @@ class ScriptReverseLight: public ScriptInterface
 			_tx_packet.func_id = 0x01;
 			if( obj.data[1] == 0x02 || obj.data[3] == 0x02 )
 			{
-				if(active == false)
+				if(_is_active == false)
 				{
 					_tx_packet.data[0] = 0xFF;
 					func(_tx_packet);
 					
-					active = true;
+					_is_active = true;
 				}
 			}
 			else
 			{
-				if(active == true)
+				if(_is_active == true)
 				{
 					_tx_packet.data[0] = 0x00;
 					func(_tx_packet);
 					
-					active = false;
+					_is_active = false;
 				}
 			}
 			
@@ -35,7 +35,7 @@ class ScriptReverseLight: public ScriptInterface
 		}
 
 	private:
-		bool active = false;
+		bool _is_active = false;
 };
 
 
@@ -110,4 +110,72 @@ class ScriptLeftRightDoor: public ScriptInterface
 			
 			return;
 		}
+};
+
+
+class ScriptHorn: public ScriptInterface
+{
+	public:
+		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		{
+			if(obj.data[0] != 0x65) return;
+			
+			_tx_packet.id = 0x018B;
+			_tx_packet.raw_data_len = 2;
+			_tx_packet.func_id = 0x01;
+			_tx_packet.data[0] = obj.data[1];
+			func(_tx_packet);
+			
+			return;
+		}
+};
+
+
+class ScriptPowerOnOff: public ScriptInterface
+{
+	public:
+		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		{
+			if(obj.data[0] != 0x65) return;
+			
+			bool motor = ((obj.data[7] >> 4) == 0 || (obj.data[7] & 0x0F) == 0);
+			
+			_tx_packet.raw_data_len = 2;
+			_tx_packet.func_id = 0x01;
+			if(motor == true)
+			{
+				if(_is_enable == false)
+				{
+					_tx_packet.data[0] = 0xFF;
+					
+					_tx_packet.id = 0x0186;
+					func(_tx_packet);
+					
+					_tx_packet.id = 0x018A;
+					func(_tx_packet);
+
+					_is_enable = true;
+				}
+			}
+			else
+			{
+				if(_is_enable == true)
+				{
+					_tx_packet.data[0] = 0x00;
+					
+					_tx_packet.id = 0x0186;
+					func(_tx_packet);
+					
+					_tx_packet.id = 0x018A;
+					func(_tx_packet);
+					
+					_is_enable = false;
+				}
+			}
+			
+			return;
+		}
+		
+	private:
+		bool _is_enable = false;
 };

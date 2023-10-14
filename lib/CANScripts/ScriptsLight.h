@@ -134,21 +134,3 @@ class ScriptCabinLight: public ScriptInterface
 			return;
 		}
 };
-
-
-class ScriptHorn: public ScriptInterface
-{
-	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
-		{
-			if(obj.data[0] != 0x65) return;
-			
-			_tx_packet.id = 0x018B;
-			_tx_packet.raw_data_len = 2;
-			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
-			func(_tx_packet);
-			
-			return;
-		}
-};

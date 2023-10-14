@@ -31,6 +31,8 @@ class CANScripts
 		{
 			memset(&_obj, 0x00, sizeof(_obj));
 			
+			// Обработка 'запуска' двигателя
+			_obj[0x0101] = new ScriptPowerOnOff();
 			
 			// Передача и фактическое направление вращения колёс
 			_obj[0x010A] = new ScriptReverseLight();

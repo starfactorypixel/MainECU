@@ -21,33 +21,6 @@ class ScriptInterface
 #include "ScriptsLight.h"
 
 
-class ScriptMain : public ScriptInterface
-{
-	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
-		{
-			// 0x012C
-			
-			_tx_packet.raw_data_len = 2;
-			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
-
-			_tx_packet.id = 0x00E4;
-			func(_tx_packet);
-			
-			_tx_packet.id = 0x00E6;
-			func(_tx_packet);
-
-			_tx_packet.id = 0x0188;
-			_tx_packet.raw_data_len = 1;
-			_tx_packet.func_id = 0x03;
-			func(_tx_packet);
-			
-			return;
-		}
-};
-
-
 class CANScripts
 {
 	public:

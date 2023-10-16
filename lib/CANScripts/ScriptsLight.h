@@ -3,13 +3,13 @@
 class ScriptLeftRightHazard: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
+			if(db_element.data[0] != 0x65) return;
 			
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
+			_tx_packet.data[0] = db_element.data[1];
 
 			switch(id)
 			{
@@ -55,13 +55,13 @@ class ScriptLeftRightHazard: public ScriptInterface
 class ScriptSideLowHighBeam: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
+			if(db_element.data[0] != 0x65) return;
 			
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
+			_tx_packet.data[0] = db_element.data[1];
 
 			switch(id)
 			{
@@ -103,14 +103,14 @@ class ScriptSideLowHighBeam: public ScriptInterface
 class ScriptBrakeLight: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
+			if(db_element.data[0] != 0x65) return;
 			
 			_tx_packet.id = 0x00E5;
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
+			_tx_packet.data[0] = db_element.data[1];
 			func(_tx_packet);
 			
 			return;
@@ -121,14 +121,14 @@ class ScriptBrakeLight: public ScriptInterface
 class ScriptCabinLight: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
-			
+			if(db_element.data[0] != 0x65) return;
+
 			_tx_packet.id = 0x0189;
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
+			_tx_packet.data[0] = db_element.data[1];
 			func(_tx_packet);
 			
 			return;

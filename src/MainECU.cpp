@@ -46,7 +46,7 @@ L3SubscriptionsDB SubsDB;
 
 VirtualValue VV;
 
-CANScripts Scripts(L2);
+CANScripts Scripts(L2, DB);
 
 
 #if defined(USE_EMULATOR)
@@ -371,6 +371,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
                 
                 StateDB::db_t db_obj;
 				DB.Get(request.Param(), db_obj);
+				#warning return false if not set data. Send to L3 empty data!
                 
                 // Отвечаем текущим значением.
 				response.Type( request.Type() );

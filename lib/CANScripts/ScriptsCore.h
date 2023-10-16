@@ -3,14 +3,14 @@
 class ScriptReverseLight: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x61) return;
+			if(db_element.data[0] != 0x61) return;
 			
 			_tx_packet.id = 0x00E6;
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
-			if( obj.data[1] == 0x02 || obj.data[3] == 0x02 )
+			if( db_element.data[1] == 0x02 || db_element.data[3] == 0x02 )
 			{
 				if(_is_active == false)
 				{
@@ -42,10 +42,10 @@ class ScriptReverseLight: public ScriptInterface
 class ScriptHoodTrunk: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
-			if(obj.data[1] != 0xFF) return;
+			if(db_element.data[0] != 0x65) return;
+			if(db_element.data[1] != 0xFF) return;
 			
 			_tx_packet.raw_data_len = 1;
 			_tx_packet.func_id = 0x02;
@@ -79,10 +79,10 @@ class ScriptHoodTrunk: public ScriptInterface
 class ScriptLeftRightDoor: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
-			if(obj.data[1] != 0xFF) return;
+			if(db_element.data[0] != 0x65) return;
+			if(db_element.data[1] != 0xFF) return;
 			
 			_tx_packet.raw_data_len = 1;
 			_tx_packet.func_id = 0x03;
@@ -116,14 +116,14 @@ class ScriptLeftRightDoor: public ScriptInterface
 class ScriptHorn: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
+			if(db_element.data[0] != 0x65) return;
 			
 			_tx_packet.id = 0x018B;
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
-			_tx_packet.data[0] = obj.data[1];
+			_tx_packet.data[0] = db_element.data[1];
 			func(_tx_packet);
 			
 			return;
@@ -134,11 +134,11 @@ class ScriptHorn: public ScriptInterface
 class ScriptPowerOnOff: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
 		{
-			if(obj.data[0] != 0x65) return;
+			if(db_element.data[0] != 0x65) return;
 			
-			bool motor = ((obj.data[7] >> 4) == 0 || (obj.data[7] & 0x0F) == 0);
+			bool motor = ((db_element.data[7] >> 4) == 0 || (db_element.data[7] & 0x0F) == 0);
 			
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;

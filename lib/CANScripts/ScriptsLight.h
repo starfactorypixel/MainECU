@@ -3,7 +3,7 @@
 class ScriptLeftRightHazard: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			
@@ -55,7 +55,7 @@ class ScriptLeftRightHazard: public ScriptInterface
 class ScriptSideLowHighBeam: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			
@@ -103,7 +103,7 @@ class ScriptSideLowHighBeam: public ScriptInterface
 class ScriptBrakeLight: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			
@@ -121,7 +121,7 @@ class ScriptBrakeLight: public ScriptInterface
 class ScriptCabinLight: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 

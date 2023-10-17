@@ -46,7 +46,7 @@ L3SubscriptionsDB SubsDB;
 
 VirtualValue VV;
 
-CANScripts Scripts(L2, DB);
+CANScripts Scripts(&L2, &DB);
 
 
 #if defined(USE_EMULATOR)

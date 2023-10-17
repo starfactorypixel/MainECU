@@ -3,7 +3,7 @@
 class ScriptReverseLight: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x61) return;
 			
@@ -42,7 +42,7 @@ class ScriptReverseLight: public ScriptInterface
 class ScriptHoodTrunk: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			if(db_element.data[1] != 0xFF) return;
@@ -79,7 +79,7 @@ class ScriptHoodTrunk: public ScriptInterface
 class ScriptLeftRightDoor: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			if(db_element.data[1] != 0xFF) return;
@@ -116,7 +116,7 @@ class ScriptLeftRightDoor: public ScriptInterface
 class ScriptHorn: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			
@@ -134,7 +134,7 @@ class ScriptHorn: public ScriptInterface
 class ScriptPowerOnOff: public ScriptInterface
 {
 	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) override
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
 			

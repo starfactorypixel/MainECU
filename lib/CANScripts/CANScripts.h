@@ -10,14 +10,24 @@ typedef std::function<void(L2Wrapper::packet_v2_t &can_obj)> tx_t;
 class ScriptInterface
 {
 	public:
-		//ScriptInterface(StateDB &db_obj);
 		virtual ~ScriptInterface() = default;
 		
-		virtual void Run(uint16_t id, StateDB::db_t &db_element, StateDB &db_obj, tx_t func) = 0;
+		virtual void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) = 0;
+		
+		static inline StateDB *db_obj;
 		
 	protected:
 		L2Wrapper::packet_v2_t _tx_packet;
 		
+};
+
+class ScriptVoid: public ScriptInterface
+{
+	public:
+		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
+		{
+			return;
+		}
 };
 
 #include "ScriptsCore.h"
@@ -28,10 +38,12 @@ class CANScripts
 {
 	public:
 
-		CANScripts(L2Wrapper &l2_obj, StateDB &db_obj) : _l2_obj(&l2_obj), _db_obj(&db_obj)
+		CANScripts(L2Wrapper *l2_obj, StateDB *db_obj) : _l2_obj(l2_obj)
 		{
 			memset(&_obj, 0x00, sizeof(_obj));
-
+			
+			// Костыль инициализации статического объекта в ScriptInterface.
+			tmp->db_obj = db_obj;
 			
 			// Обработка 'запуска' двигателя
 			_obj[0x0101] = new ScriptPowerOnOff();
@@ -101,7 +113,7 @@ class CANScripts
 			if(id >= 2048) return;
 			if(_obj[id] == 0 /*nullptr*/) return;
 
-			_obj[id]->Run(id, db_element, *_db_obj, [&](L2Wrapper::packet_v2_t &can_obj)
+			_obj[id]->Run(id, db_element, [&](L2Wrapper::packet_v2_t &can_obj)
 			{
 				_l2_obj->Send(can_obj);
 			});
@@ -112,6 +124,7 @@ class CANScripts
 	private:
 		ScriptInterface *_obj[2048];
 		L2Wrapper *_l2_obj;
-		StateDB *_db_obj;
+		
+		ScriptInterface *tmp;
 
 };

@@ -65,6 +65,7 @@ class StateDB
 				memcpy(_db[id].data, obj.data, obj.length);
 				_db[id].length = obj.length;
 				_db[id].time = obj.time;
+				#warning Replace to memcpy ?
 				
 				result = true;
 			}
@@ -106,7 +107,7 @@ class StateDB
 		{
 			bool result = false;
 			
-			if(id < _max_id && _db[id].isset == 0b1)
+			if(id < _max_id/* && _db[id].isset == 0b1*/)
 			{
 				obj = _db[id];
 				

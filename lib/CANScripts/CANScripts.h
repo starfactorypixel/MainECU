@@ -21,15 +21,6 @@ class ScriptInterface
 		
 };
 
-class ScriptVoid: public ScriptInterface
-{
-	public:
-		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
-		{
-			return;
-		}
-};
-
 #include "ScriptsCore.h"
 #include "ScriptsLight.h"
 

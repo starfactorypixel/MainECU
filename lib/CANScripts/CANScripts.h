@@ -40,7 +40,7 @@ class CANScripts
 			_obj[0x0101] = new ScriptPowerOnOff();
 			
 			// Передача и фактическое направление вращения колёс
-			_obj[0x010A] = new ScriptReverseLight();
+			_obj[0x010A] = new Script_010A();
 
 			// Кнопка 01, Ближний свет.
 			_obj[0x0124] = new ScriptSideLowHighBeam();

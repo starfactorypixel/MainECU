@@ -1,41 +1,73 @@
 #pragma once
 
-class ScriptReverseLight: public ScriptInterface
+class Script_010A: public ScriptInterface
 {
 	public:
 		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x61) return;
 			
+			// Обработка включения заднего света.
 			_tx_packet.id = 0x00E6;
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
 			if( db_element.data[1] == 0x02 || db_element.data[3] == 0x02 )
 			{
-				if(_is_active == false)
+				if(_is_active_reverse == false)
 				{
 					_tx_packet.data[0] = 0xFF;
 					func(_tx_packet);
 					
-					_is_active = true;
+					_is_active_reverse = true;
 				}
 			}
 			else
 			{
-				if(_is_active == true)
+				if(_is_active_reverse == true)
 				{
 					_tx_packet.data[0] = 0x00;
 					func(_tx_packet);
 					
-					_is_active = false;
+					_is_active_reverse = false;
+				}
+			}
+			
+			
+			// Обработка включения анимации зарядки.
+			StateDB::db_t obj;
+			db_obj->Get(0x0057, obj);
+			int16_t power = *(int16_t*)(obj.data + 1);
+			
+			_tx_packet.id = 0x00EB;
+			_tx_packet.raw_data_len = 2;
+			_tx_packet.func_id = 0x01;
+			if( (db_element.data[1] == 0x00 || db_element.data[3] == 0x00) && power < 0 )
+			{
+				if(_is_active_charging_anim == false)
+				{
+					_tx_packet.data[0] = 0xC1;
+					func(_tx_packet);
+					
+					_is_active_charging_anim = true;
+				}
+			}
+			else
+			{
+				if(_is_active_charging_anim == true)
+				{
+					_tx_packet.data[0] = 0x00;
+					func(_tx_packet);
+					
+					_is_active_charging_anim = false;
 				}
 			}
 			
 			return;
 		}
-
+		
 	private:
-		bool _is_active = false;
+		bool _is_active_reverse = false;
+		bool _is_active_charging_anim = false;
 };
 
 

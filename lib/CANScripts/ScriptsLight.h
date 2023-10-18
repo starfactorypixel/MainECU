@@ -124,13 +124,41 @@ class ScriptCabinLight: public ScriptInterface
 		void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) override
 		{
 			if(db_element.data[0] != 0x65) return;
+			
+			
+			StateDB::db_t obj;
+			
+			db_obj->Get(0x0126, obj);
+			uint8_t button = obj.data[1];
 
+			db_obj->Get(0x0130, obj);
+			uint8_t ldoor = obj.data[1];
+
+			db_obj->Get(0x0131, obj);
+			uint8_t rdoor = obj.data[1];
+
+
+			_tx_packet.id = 0x0189;
+			_tx_packet.raw_data_len = 2;
+			_tx_packet.func_id = 0x01;
+			if(button > 0 || (ldoor > 0 || rdoor > 0))
+			{
+				_tx_packet.data[0] = 0xFF;
+			}
+			else
+			{
+				_tx_packet.data[0] = 0x00;
+			}
+			func(_tx_packet);
+
+			
+/*
 			_tx_packet.id = 0x0189;
 			_tx_packet.raw_data_len = 2;
 			_tx_packet.func_id = 0x01;
 			_tx_packet.data[0] = db_element.data[1];
 			func(_tx_packet);
-			
+*/			
 			return;
 		}
 };

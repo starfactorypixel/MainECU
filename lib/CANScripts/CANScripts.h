@@ -14,12 +14,13 @@ class ScriptInterface
 		
 		virtual void Run(uint16_t id, StateDB::db_t &db_element, tx_t func) = 0;
 		
-		static inline StateDB *db_obj;
+		static StateDB *db_obj;
 		
 	protected:
 		L2Wrapper::packet_v2_t _tx_packet;
 		
 };
+StateDB* ScriptInterface::db_obj = nullptr;
 
 #include "ScriptsCore.h"
 #include "ScriptsLight.h"
@@ -31,10 +32,9 @@ class CANScripts
 
 		CANScripts(L2Wrapper *l2_obj, StateDB *db_obj) : _l2_obj(l2_obj)
 		{
-			memset(&_obj, 0x00, sizeof(_obj));
+			ScriptInterface::db_obj = db_obj;
 			
-			// Костыль инициализации статического объекта в ScriptInterface.
-			tmp->db_obj = db_obj;
+			memset(&_obj, 0x00, sizeof(_obj));
 			
 			// Обработка 'запуска' двигателя
 			_obj[0x0101] = new ScriptPowerOnOff();
@@ -116,6 +116,4 @@ class CANScripts
 		ScriptInterface *_obj[2048];
 		L2Wrapper *_l2_obj;
 		
-		ScriptInterface *tmp;
-
 };

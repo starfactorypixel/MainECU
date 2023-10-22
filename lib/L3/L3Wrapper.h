@@ -210,7 +210,7 @@ class L3Wrapper
 				
 				if(obj.auth == false) continue;
 				//if( dev_type == L3_DEVTYPE_ALL || obj.driver->GetType() == dev_type )
-				if(obj.driver->GetType() & dev_type > 0)
+				if( (obj.driver->GetType() & dev_type) > 0 )
 				{
 					obj.tx_packet.Type(type);
 					obj.tx_packet.Param(param);

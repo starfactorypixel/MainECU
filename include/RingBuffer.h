@@ -1,3 +1,4 @@
+#pragma once
 // http://we.easyelectronics.ru/Soft/kolcevoy-bufer-na-s-dlya-mk.html
 // Шаблон кольцевого буфера
 // принимает два параметра:

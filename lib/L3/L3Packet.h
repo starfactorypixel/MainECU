@@ -120,10 +120,7 @@ class L3Packet
 		// Copy assigments.
 		L3Packet& operator=(const L3Packet &parent)
 		{
-			for(uint8_t i = 0; i < sizeof(this->_packet); ++i)
-			{
-				this->_packet[i] = parent._packet[i];
-			}
+			memcpy(this->_packet, parent._packet, sizeof(this->_packet));
 			this->_timeout = parent._timeout;
 			this->_error = parent._error;
 			this->_putDataIndex = parent._putDataIndex;
@@ -232,10 +229,8 @@ class L3Packet
 			
 			if(length <= _maxDataLength)
 			{
-				for(uint8_t i = 0; i < length; ++i)
-				{
-					this->_packet[6 + this->_putDataIndex++] = data[i];
-				}
+				memcpy(this->_packet + this->_putDataIndex + 6, data, length);
+				this->_putDataIndex += length;
 				this->_packet[5] = this->_putDataIndex;
 				
 				result = true;

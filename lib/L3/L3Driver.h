@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <RingBuffer.h>
+
 class L3Driver
 {
 	using packet_t = L3Packet<L3PacketDataSize>;
@@ -29,12 +31,16 @@ class L3Driver
 			while(ReadAvailable() > 0)
 			{
 				// Если пакет уже принят и ещё не обработан, то игнорируем. Увы, может быть потеря, иначе никак.
-				if(_rx_packet.IsReceived() == true) break;
+				//if(_rx_packet.IsReceived() == true) break;
 				
 				rx_data = ReadByte();
 				if( _rx_packet.PutPacketByte(rx_data, time) == true )
 				{
-					// Nothing?
+					if(_rx_packet.IsReceived() == true)
+					{
+						_rx_packets.Write(_rx_packet);
+						_rx_packet.Init();
+					}
 				}
 			}
 			
@@ -58,7 +64,9 @@ class L3Driver
 		// Флаг того, что пакет можно забирать. Это или принятый пакет или пакет с ошибкой.
 		bool NeedGetPacket()
 		{
-			return (_rx_packet.IsReceived() == true || _rx_packet.GetError() != _rx_packet.ERROR_NONE);
+			packet_t tmp = _rx_packets.First();
+			
+			return (tmp.IsReceived() == true || tmp.GetError() != tmp.ERROR_NONE);
 		}
 		
 		// Флаг того, что можно вставлять пакет для отправки.
@@ -70,8 +78,10 @@ class L3Driver
 		// Копирует принятый пакет в тот что передан по ссылке и очищает горячий пакет.
 		void GetPacket(packet_t &packet)
 		{
-			packet = _rx_packet;
-			_rx_packet.Init();
+			_rx_packets.Read(packet);
+			
+			//packet = _rx_packet;
+			//_rx_packet.Init();
 			
 			return;
 		}
@@ -114,6 +124,7 @@ class L3Driver
 		
 		L3DevType_t _type;			// Тип устройства.
 		packet_t _rx_packet;		// Объект принимаемого пакета.
+		RingBuffer<16, packet_t> _rx_packets;	// Хранилище принимаемых пакетов.
 		packet_t _tx_packet;		// Объект отправляемого пакета.
 		
 };

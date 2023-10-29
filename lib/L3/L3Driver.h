@@ -28,34 +28,26 @@ class L3Driver
 			// Если хоть что то есть, то принимаем до дого момента как пакет будет полностью получен,
 			// после чего выходим и даём время на остальные обработки.
 			uint8_t rx_data = 0x00;
-			while(ReadAvailable() > 0)
+			while( ReadAvailable() > 0 )
 			{
-				// Если пакет уже принят и ещё не обработан, то игнорируем. Увы, может быть потеря, иначе никак.
-				//if(_rx_packet.IsReceived() == true) break;
-				
 				rx_data = ReadByte();
-				if( _rx_packet.PutPacketByte(rx_data, time) == true )
+				if( _rx_packet_hot.PutPacketByte(rx_data, time) == true )
 				{
-					if(_rx_packet.IsReceived() == true)
+					if(_rx_packet_hot.IsReceived() == true)
 					{
-						_rx_packets.Write(_rx_packet);
-						_rx_packet.Init();
+						_rx_packets.Write(_rx_packet_hot);
+						_rx_packet_hot.Init();
 					}
 				}
 			}
 			
 			// 'Типа' прерывание по передачи байта.
-			if(_tx_packet.IsPrepared() == true)
+			if( _tx_packets.IsEmpty() == false )
 			{
-				uint8_t *tx_data_ptr = _tx_packet.GetPacketPtr();
-				SendBytes(tx_data_ptr, _tx_packet.GetPacketLength());
-
-/*				while(_tx_packet.GetPacketByte(inout_byte) == true)
-				{
-					SendByte(inout_byte);
-				}
-*/
-				_tx_packet.Init();
+				_tx_packets.Read(_tx_packet_hot);
+				
+				// Функция write очень долгая. Если слать несколько пакетов сразу, то приходиться ждать по 14.4мс пока UART примет пакет на передачу.
+				SendBytes(_tx_packet_hot.GetPacketPtr(), _tx_packet_hot.GetPacketLength());
 			}
 			
 			return;
@@ -65,14 +57,13 @@ class L3Driver
 		bool NeedGetPacket()
 		{
 			packet_t tmp = _rx_packets.First();
-			
 			return (tmp.IsReceived() == true || tmp.GetError() != tmp.ERROR_NONE);
 		}
 		
 		// Флаг того, что можно вставлять пакет для отправки.
 		bool CanPutPacket()
 		{
-			return _tx_packet.IsReady();
+			return ( _tx_packets.IsFull() == false );
 		}
 		
 		// Копирует принятый пакет в тот что передан по ссылке и очищает горячий пакет.
@@ -80,36 +71,15 @@ class L3Driver
 		{
 			_rx_packets.Read(packet);
 			
-			//packet = _rx_packet;
-			//_rx_packet.Init();
-			
 			return;
 		}
 		
 		// Копирует отправляемый пакет из того что передан по ссылке и подготавливает его к отправке.
 		void PutPacket(packet_t &packet)
 		{
-			//Serial.println("PutPacket 1");
-			// Временный костыль: Вешаем поток до тех пор, пока предыдущий пакет не будет отправлен полностью.
-			while(_tx_packet.IsReady() == false)
-			{
-				delayMicroseconds(50);
-				
-				/*
-				Serial.println( (_tx_packet.IsPrepared() == true), HEX );
-				Serial.println(_tx_packet.Type(), HEX);
-				Serial.println(_tx_packet.Param(), HEX);
-				Serial.println(_tx_packet.GetDataLength(), HEX);
-				*/
-			}
-			//if(_tx_packet.IsReady() == false) return;
-
-			//Serial.println("PutPacket 2");
-
-			_tx_packet = packet;
-			_tx_packet.Prepare();
-
-			//Serial.println("PutPacket 9");
+			packet.Prepare();
+			while( _tx_packets.IsFull() == true ) { /* Ждём... */ }
+			_tx_packets.Write(packet);
 			
 			return;
 		}
@@ -122,19 +92,16 @@ class L3Driver
 		
 	protected:
 		
-		L3DevType_t _type;			// Тип устройства.
-		packet_t _rx_packet;		// Объект принимаемого пакета.
-		RingBuffer<16, packet_t> _rx_packets;	// Хранилище принимаемых пакетов.
-		packet_t _tx_packet;		// Объект отправляемого пакета.
+		L3DevType_t _type;						// Тип устройства.
+		
+		packet_t _rx_packet_hot;				// Горячий объект принимаемого пакета.
+		RingBuffer<16, packet_t> _rx_packets;	// Хранилище принятых пакетов.
+		
+		packet_t _tx_packet_hot;				// Горячий объект отправляемого пакета.
+		RingBuffer<16, packet_t> _tx_packets;	// Хранилище отправляемых пакетов.
 		
 };
 
-#ifdef ARDUINO_ARCH_ESP32
-	#include "L3DriverBluetooth.h"
-	#include "L3DriverSerial.h"
-	#include "L3DriverUART.h"
-#elif ARDUINO_ARCH_AVR
-	#include "L3DriverSerial.h"
-	#include "L3DriverSoftSerial.h"
-	#include "L3DriverUART.h"
-#endif
+#include "L3DriverBluetooth.h"
+#include "L3DriverSerial.h"
+#include "L3DriverUART.h"

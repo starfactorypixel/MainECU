@@ -18,7 +18,7 @@ class L3DriverBluetooth final : public L3Driver
 		L3DriverBluetooth()
 		{
 			_type = L3_DEVTYPE_BLUETOOTH;
-			_rx_packet.SetTimeout(50);
+			_rx_packet_hot.SetTimeout(50);
 			
 			return;
 		}

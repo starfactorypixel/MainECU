@@ -13,7 +13,7 @@ class L3DriverUART final : public L3Driver
 		L3DriverUART() : SerialHW(2)
 		{
 			_type = L3_DEVTYPE_COMPUTER;
-			_rx_packet.SetTimeout(10);
+			_rx_packet_hot.SetTimeout(10);
 			
 			return;
 		}
@@ -45,6 +45,7 @@ class L3DriverUART final : public L3Driver
 		void SendBytes(const uint8_t *buffer, uint8_t length) override
 		{
 			SerialHW.write(buffer, length);
+			SerialHW.flush();
 			
 			return;
 		}

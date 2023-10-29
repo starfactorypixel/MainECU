@@ -111,7 +111,7 @@ class StateDB
 			{
 				obj = _db[id];
 				
-				result = true;
+				result = (_db[id].isset == 0b1);
 			}
 			
 			return result;

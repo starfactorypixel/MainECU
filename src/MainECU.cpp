@@ -281,25 +281,25 @@ void loop()
 		
 		if(subs == L3_DEVTYPE_NONE) return;
 		
-		if( (subs & L3_DEVTYPE_BLUETOOTH) != L3_DEVTYPE_NONE )
-        {
+		if( subs & L3_DEVTYPE_BLUETOOTH )
+		{
 			DEBUG_LOG_TOPIC("L3_Send", "BT id: 0x%04X", id);
 			L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
 			DEBUG_LOG_SIMPLE(" done;\n");
-        }
-        if( (subs & L3_DEVTYPE_DASHBOARD) != L3_DEVTYPE_NONE )
-        {
+		}
+		if( subs & L3_DEVTYPE_DASHBOARD )
+		{
 			DEBUG_LOG_TOPIC("L3_Send", "DB id: 0x%04X", id);
-            L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-            DEBUG_LOG_SIMPLE(" done;\n");
-        }
-        if( (subs & L3_DEVTYPE_COMPUTER) != L3_DEVTYPE_NONE )
-        {
+			L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+			DEBUG_LOG_SIMPLE(" done;\n");
+		}
+		if( subs & L3_DEVTYPE_COMPUTER )
+		{
 			DEBUG_LOG_TOPIC("L3_Send", "UART id: 0x%04X", id);
-            L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-            DEBUG_LOG_SIMPLE(" done;\n");
-        }
-    });
+			L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+			DEBUG_LOG_SIMPLE(" done;\n");
+		}
+	});
 
 
 #if defined(USE_EMULATOR)
@@ -361,18 +361,39 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 		// Если ID не подходящий (>2048), то отправляем ошибку.
 		case L3_REQTYPE_SUBSCRIBE:
 		{
-            if(request.Param() < 0x0800)
+			if(request.Param() < 0x0800)
 			{
-                SubsDB.Set(request.Param(), dev);
-                
-                StateDB::db_t db_obj;
-				DB.Get(request.Param(), db_obj);
+				SubsDB.Set(request.Param(), dev);
+				
+				StateDB::db_t db_obj;
 				#warning return false if not set data. Send to L3 empty data!
+				
+				if( DB.Get(request.Param(), db_obj) == true )
+				{
+					// Отправляем в устройство текущее значение.
+					response.Type( request.Type() );
+					response.Param( request.Param() );
+					response.PutData( db_obj.data, db_obj.length );
+				}
+				else
+				{
+					// Отправляем в устройство ошибку отсутствия данных.
+					response.Type(L3_REQTYPE_ERROR);
+					response.Param( request.Param() );
+					response.PutData( 0xE0 );
+					
+					// Отправляем в CAN пакет запроса значения.
+					L2Wrapper::packet_v2_t can_packet;
+					can_packet.id = request.Param();
+					can_packet.raw_data_len = 1;
+					can_packet.func_id = 0x11;
+					L2.Send(can_packet);
+				}
                 
                 // Отвечаем текущим значением.
-				response.Type( request.Type() );
-				response.Param( request.Param() );
-				response.PutData( db_obj.data, db_obj.length );
+				//response.Type( request.Type() );
+				//response.Param( request.Param() );
+				//response.PutData( db_obj.data, db_obj.length );
 			}
 			else if( (request.Param() % 0x8000) < 0x0800 )
 			{

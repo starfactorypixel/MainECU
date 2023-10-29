@@ -1,7 +1,3 @@
-/*
-    Основная программа Main ECU модуля.
-*/
-
 #include "soc/rtc_wdt.h"
 #include "esp_int_wdt.h"
 #include "esp_task_wdt.h"

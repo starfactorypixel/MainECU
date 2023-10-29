@@ -61,9 +61,9 @@ class L3Wrapper
 		
 		void Processing(uint32_t time)
 		{
-			for(uint8_t i = 0; i < _dev_obj_idx; ++i)
+			for(_object_t &obj : _dev_obj)
 			{
-				_object_t &obj = _dev_obj[i];
+				if(obj.driver == nullptr) continue;
 				
 				if( obj.driver->NeedGetPacket() == true )
 				{
@@ -127,7 +127,8 @@ class L3Wrapper
 							default:
 							{
 								if(obj.auth == false) break;
-								
+
+								//obj.tx_packet.Init(); // ???
 								if( _callback_event( obj.driver->GetType(), obj.rx_packet, obj.tx_packet ) == true )
 								{
 									this->_Send(obj);
@@ -204,23 +205,18 @@ class L3Wrapper
 		
 		void Send(L3DevType_t dev_type, uint8_t type, uint16_t param, byte *data, uint8_t length)
 		{
-			for(uint8_t i = 0; i < _max_dev; ++i)
+			for(_object_t &obj : _dev_obj)
 			{
-				_object_t &obj = _dev_obj[i];
-				
+				if(obj.driver == nullptr) continue;
 				if(obj.auth == false) continue;
-				//if( dev_type == L3_DEVTYPE_ALL || obj.driver->GetType() == dev_type )
-				if( (obj.driver->GetType() & dev_type) > 0 )
+				
+				if( obj.driver->GetType() & dev_type )
 				{
 					obj.tx_packet.Type(type);
 					obj.tx_packet.Param(param);
-					for(int8_t i = 0; i < length; ++i)
-					{
-						obj.tx_packet.PutData(data[i]);
-					}
-					this->_Send(obj);
+					obj.tx_packet.PutData(data, length);
 					
-					//break;
+					this->_Send(obj);
 				}
 			}
 			
@@ -317,7 +313,7 @@ class L3Wrapper
 			obj.rx_packet.Init();
 			obj.tx_packet.Init();
 			obj.ping_attempts = 0;
-
+			
 			this->_callback_reset( obj.driver->GetType() );
 			
 			return;

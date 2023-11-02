@@ -73,16 +73,25 @@ class L2Wrapper
 		bool Send(packet_t &packet)
 		{
 			#warning Delete this && Replace to 'bool Send(packet_v2_t &packet)' && Use orginal library;
+
+#if defined(NO_CAN_SEND)
+			return true;
+#else
 			return this->_driver.SendPacket(packet);
+#endif
 		}
 		
 		bool Send(packet_v2_t &packet)
 		{
 			bool result = false;
-
+			
+#if defined(NO_CAN_SEND)
+			result = true;
+#else
 			this->_driver.beginPacket(packet.id);
 			this->_driver.write(packet.raw_data, packet.raw_data_len);
 			result = this->_driver.endPacket();
+#endif
 			
 			return result;
 		}

@@ -51,32 +51,18 @@ CANScripts Scripts(&L2, &DB);
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
-    uint8_t new_bytes[8];
-    new_bytes[0] = 0x61;
-    for(uint8_t i = 0; i < length; ++i)
-    {
-        new_bytes[i+1] = bytes[i];
-    }
-
-	if(id == 0x0106)
-	{
-		new_bytes[3] = new_bytes[1];
-		new_bytes[4] = new_bytes[2];
-		length += 2;
-	}
-
 	DB.SetObjType(id, 0x01);
-    DB.Set(id, new_bytes, length+1, time);
-    
-    return;
+	DB.Set(id, bytes, length, time);
+	
+	return;
 }
-Emulator em(EmulatorOnUpdate);
-//									id,			min,		max,		interval,	step,		value,		algorithm
-VirtualDevice<uint16_t>	dev_voltage(0x0044,		620,		820,		1000,		7,			743,		VirtualDevice<uint16_t>::ALG_MINFADEMAX);
-VirtualDevice<uint16_t>	dev_speed(0x0106,		0,			1000,		300,		1,			2,			VirtualDevice<uint16_t>::ALG_MINFADEMAX);
-VirtualDevice<int16_t>	dev_current(0x0045,		-1500,		1500,		1000,		20,			-112,		VirtualDevice<int16_t>::ALG_RANDOM);
-//VirtualDevice<uint8_t>	dev_light(0x00E5,		0,			255,		5000,		1,			0,			VirtualDevice<uint8_t>::ALG_MINMAX);	// Стоп сигнал
-VirtualDevice<int16_t>	dev_power(0x0054,		-5000,		5000,		1000,		250,		-1124,		VirtualDevice<int16_t>::ALG_RANDOM);
+Emulator<64> emulator(EmulatorOnUpdate);
+VirtualDeviceInterface *emulator_objects[] = 
+{
+	// new VirtualDevice<type>(id, fId, min, max, interval, step, value, algorithm),
+	new VirtualDevice<uint8_t>(0x0186,		0x61,		0,			100,		250,		3,		70,			VirtualDeviceInterface::ALG_MINFADEMAX),
+	new VirtualDevice<int16_t>(0x0188,		0x61,		-5000,		5000,		600,		55,		1234,		VirtualDeviceInterface::ALG_RANDOM),
+};
 #endif
 
 
@@ -195,11 +181,10 @@ void setup()
 
 
 #if defined(USE_EMULATOR)
-	em.RegDevice(dev_voltage);
-	em.RegDevice(dev_speed);
-	em.RegDevice(dev_current);
-	//em.RegDevice(dev_light);
-	em.RegDevice(dev_power);
+	for(auto &obj : emulator_objects)
+	{
+		emulator.RegDevice(*obj);
+	}
 #endif
 
 
@@ -330,7 +315,7 @@ void loop()
 
 
 #if defined(USE_EMULATOR)
-    em.Processing(current_time);
+	emulator.Processing(current_time);
 #endif
     
 
@@ -587,9 +572,9 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
 	bool result = false;
 	
-	DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
-	DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
-	DEBUG_LOG_SIMPLE(";\n");
+	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
+	//DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
+	//DEBUG_LOG_SIMPLE(";\n");
 
 	//#warning Remove this after debug !!!1
 	DB.SetObjType(request.id, 0x01);

@@ -32,11 +32,23 @@ class L3DriverBluetooth final : public L3Driver
 			//GetPinCode(pin);
 			//SerialBT.enableSSP();
 
-			
+
+
 			SerialBT.begin(" "); // инициализируем BT с пустой строкой вместо имени
 			const uint8_t* mac = esp_bt_dev_get_address(); //вытаскиваем mac адрес BT
 			sprintf(btDevName, "StarPixel_%02X%02X%02X", mac[3], mac[4], mac[5]); //последние 3 байта адреса пишем в имя BT
 			esp_bt_dev_set_device_name(btDevName); //переименовываем BT
+
+			/* Class of Device (CoD) Calculator */
+			// https://www.ampedrftech.com/cod.htm
+			
+			uint32_t CoD = 0x800108;
+			esp_bt_cod_t class_of_device = {};
+			class_of_device.major = ((CoD >> 8) & 0x1F);			// 0x01;
+			class_of_device.minor = ((CoD >> 2) & 0x3F);			// 0x02;
+			class_of_device.service = (((CoD >> 16) & 0x7FF) << 3);	// 0x400;
+			esp_bt_gap_set_cod(class_of_device, ESP_BT_INIT_COD);
+			/* */
 
 			//esp_bt_sp_param_t param_type = ESP_BT_SP_IOCAP_MODE;
         	//esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_IO;

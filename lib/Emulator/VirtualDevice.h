@@ -34,6 +34,10 @@ class VirtualDevice : public VirtualDeviceInterface
 				
 				switch(_config.algorithm)
 				{
+					case ALG_STATIC:
+					{
+						break;
+					}
 					case ALG_RANDOM:
 					{
 						// Некорректно работает с float.
@@ -63,6 +67,8 @@ class VirtualDevice : public VirtualDeviceInterface
 							_config.value = val_to;
 							_config.direction = !_config.direction;
 						}
+
+						break;
 					}
 					default:
 					{

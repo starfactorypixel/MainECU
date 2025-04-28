@@ -41,10 +41,10 @@ class StateDB
 			
 			db_t &db_obj = _db[id];
 			db_obj.isset = 0b1;
-			db_obj.update = 0b1;
 			memcpy(db_obj.data, data, length);
 			db_obj.length = length;
 			db_obj.time = time;
+			db_obj.update = 0b1;
 			
 			return true;
 		}

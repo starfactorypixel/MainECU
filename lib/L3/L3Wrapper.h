@@ -78,9 +78,9 @@ class L3Wrapper
 						//obj.ping_attempts = 0;
 
 
-						DEBUG_LOG_TOPIC("L3_ROOT", "RawPacket(%d): ", obj.rx_packet.GetPacketLength());
-						DEBUG_LOG_ARRAY_HEX(nullptr, obj.rx_packet.GetPacketPtr(), obj.rx_packet.GetPacketLength());
-						DEBUG_LOG_SIMPLE(";\n");
+						//DEBUG_LOG_TOPIC("L3_ROOT", "RawPacket(%d): ", obj.rx_packet.GetPacketLength());
+						//DEBUG_LOG_ARRAY_HEX(nullptr, obj.rx_packet.GetPacketPtr(), obj.rx_packet.GetPacketLength());
+						//DEBUG_LOG_SIMPLE(";\n");
 
 
 						// Тут выполняем все 'системные' вызовы, а всё остальное отправляем в callback.
@@ -122,7 +122,7 @@ class L3Wrapper
 								else if( obj.rx_packet.Param() == 0xFFFF )
 								{
 									// Ответ на пинг
-									DEBUG_LOG_TOPIC("L3_ROOT", "Ping RX;\n");
+									//DEBUG_LOG_TOPIC("L3_ROOT", "Ping RX;\n");
 
 									obj.ping_attempts = 0;
 								}
@@ -168,7 +168,7 @@ class L3Wrapper
 						{
 							obj.ping_lasttime = time;
 							
-							DEBUG_LOG_TOPIC("L3_ROOT", "Ping TX;\n");
+							//DEBUG_LOG_TOPIC("L3_ROOT", "Ping TX;\n");
 							obj.state = L3_DEVSTATE_PING;
 							obj.ping_attempts++;
 							
@@ -191,7 +191,7 @@ class L3Wrapper
 							}
 							else
 							{
-								DEBUG_LOG_TOPIC("L3_ROOT", "Ping TX %d;\n", obj.ping_attempts);
+								//DEBUG_LOG_TOPIC("L3_ROOT", "Ping TX %d;\n", obj.ping_attempts);
 								obj.ping_attempts++;
 								
 								_SendPing(obj);

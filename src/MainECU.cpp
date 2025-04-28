@@ -62,8 +62,8 @@ VirtualDeviceInterface *emulator_objects[] =
 	// new VirtualDevice<type>(id, 		fId, min, max, interval, step, value, algorithm),
 	new VirtualDevice<uint16_t>(0x010E, 0x61, 0, 550, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x010F, 0x61, 0, 550, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
-	new VirtualDevice<uint16_t>(0x0110, 0x61, 0, 600, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
-	new VirtualDevice<uint16_t>(0x0111, 0x61, 0, 600, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
+	new VirtualDevice<uint16_t>(0x0110, 0x61, 0, 600, 250, 10, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
+	new VirtualDevice<uint16_t>(0x0111, 0x61, 0, 600, 250, 10, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x0112, 0x61, 740, 840, 500, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x0113, 0x61, 740, 840, 500, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<int16_t>(0x0114, 0x61, 0, 599, 500, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
@@ -77,8 +77,8 @@ VirtualDeviceInterface *emulator_objects[] =
 	new VirtualDevice<uint32_t>(0x011E, 0x61, 0, 999999, 5000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x013E, 0x61, 0, 550, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x013F, 0x61, 0, 550, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
-	new VirtualDevice<uint16_t>(0x0140, 0x61, 0, 600, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
-	new VirtualDevice<uint16_t>(0x0141, 0x61, 0, 600, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
+	new VirtualDevice<uint16_t>(0x0140, 0x61, 0, 600, 250, 10, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
+	new VirtualDevice<uint16_t>(0x0141, 0x61, 0, 600, 250, 10, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x0142, 0x61, 740, 840, 500, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint16_t>(0x0143, 0x61, 740, 840, 500, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<int16_t>(0x0144, 0x61, 0, 599, 500, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
@@ -380,9 +380,9 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 	uint8_t *packet_ptr = request.GetPacketPtr();
 	uint8_t *data_ptr = request.GetDataPtr();
 	
-	DEBUG_LOG_TOPIC("L3_OnRX", "Type: 0x%02X, Param: 0x%04X, Data(%d): ", request.Type(), request.Param(), request.GetDataLength());
-	DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
-	DEBUG_LOG_SIMPLE(";\n");
+	//DEBUG_LOG_TOPIC("L3_OnRX", "Type: 0x%02X, Param: 0x%04X, Data(%d): ", request.Type(), request.Param(), request.GetDataLength());
+	//DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
+	//DEBUG_LOG_SIMPLE(";\n");
 	
 	// https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
     switch (request.Type())
@@ -425,6 +425,8 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 			if(request.Param() < 0x0800)
 			{
 				SubsDB.Set(request.Param(), dev);
+
+				DEBUG_LOG_TOPIC("L3_SUB", "ID: 0x%04X\n", request.Param());
 				
 				StateDB::db_t db_obj;
 				#warning return false if not set data. Send to L3 empty data!
@@ -459,6 +461,8 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 			else if( (request.Param() % 0x8000) < 0x0800 )
 			{
 				SubsDB.Del( (request.Param() % 0x8000), dev);
+
+				DEBUG_LOG_TOPIC("L3_UNSUB", "ID: 0x%04X\n", request.Param());
 				
 				// Отвечаем пустым значением.
 				response.Type( request.Type() );

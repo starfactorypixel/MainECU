@@ -114,6 +114,19 @@ class L3SubscriptionsDB
 			return;
 		}
 		
+		void Dump(L3DevType_t dev, void (*func)(uint16_t &id))
+		{
+			for(uint16_t i = 0; i < _max_id; ++i)
+			{
+				if( (_db[i].devices & dev) == dev )
+				{
+					func(i);
+				}
+			}
+			
+			return;
+		}
+		
 	private:
 		struct db_t
 		{

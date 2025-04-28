@@ -291,6 +291,18 @@ void loop()
     L2.Processing(current_time);
 
     L3.Processing(current_time);
+
+	static uint32_t wqeqqwe = 0;
+	if(millis() - wqeqqwe > 1000)
+	{
+		wqeqqwe = millis();
+		DEBUG_LOG_TOPIC("SUB_LIST", "");
+		SubsDB.Dump(L3_DEVTYPE_BLUETOOTH, [](uint16_t &id)
+		{
+			DEBUG_LOG_SIMPLE("%d, ", id);
+		});
+		DEBUG_LOG_SIMPLE("\n");
+	}
     
 	DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
 	{

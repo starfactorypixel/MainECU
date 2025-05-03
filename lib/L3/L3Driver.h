@@ -7,6 +7,8 @@
 
 #include <RingBuffer.h>
 
+extern uint32_t global_error_count;
+
 class L3Driver
 {
 	using packet_t = L3Packet<L3PacketDataSize>;
@@ -35,7 +37,10 @@ class L3Driver
 				{
 					if(_rx_packet_hot.IsReceived() == true)
 					{
-						_rx_packets.Write(_rx_packet_hot);
+						if( _rx_packets.Write(_rx_packet_hot) == false )
+						{
+							global_error_count++;
+						}
 						_rx_packet_hot.Init();
 					}
 				}
@@ -95,10 +100,10 @@ class L3Driver
 		L3DevType_t _type;						// Тип устройства.
 		
 		packet_t _rx_packet_hot;				// Горячий объект принимаемого пакета.
-		RingBuffer<16, packet_t> _rx_packets;	// Хранилище принятых пакетов.
+		RingBuffer<128, packet_t> _rx_packets;	// Хранилище принятых пакетов.
 		
 		packet_t _tx_packet_hot;				// Горячий объект отправляемого пакета.
-		RingBuffer<16, packet_t> _tx_packets;	// Хранилище отправляемых пакетов.
+		RingBuffer<32, packet_t> _tx_packets;	// Хранилище отправляемых пакетов.
 		
 };
 

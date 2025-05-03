@@ -56,7 +56,7 @@ enum L3ReqType_t : uint8_t
     L3_REQTYPE_NONE0F = 0x0F,               // 
     L3_REQTYPE_SERVICES = 0x10,             // Сервисные пакеты.
     L3_REQTYPE_SUBSCRIBE = 0x11,            // Регистрация параметра на переодическую отправку.
-    L3_REQTYPE_NONE12 = 0x12,               // 
+    L3_REQTYPE_SUBSCRIBE_PACK = 0x12,       // 
     L3_REQTYPE_NONE13 = 0x13,               // 
     L3_REQTYPE_NONE14 = 0x14,               // 
     L3_REQTYPE_EVENTS = 0x15,               // События.

@@ -22,6 +22,13 @@ StateDB DB;
 
 
 
+
+
+
+uint32_t global_error_count = 0;
+
+
+
 L2Wrapper L2;
 
 bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response);
@@ -299,9 +306,9 @@ void loop()
 		DEBUG_LOG_TOPIC("SUB_LIST", "");
 		SubsDB.Dump(L3_DEVTYPE_BLUETOOTH, [](uint16_t &id)
 		{
-			DEBUG_LOG_SIMPLE("%d, ", id);
+			DEBUG_LOG_SIMPLE("0x%04x, ", id);
 		});
-		DEBUG_LOG_SIMPLE("\n");
+		DEBUG_LOG_SIMPLE("err: %d\n", global_error_count);
 	}
     
 	DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
@@ -478,7 +485,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				
 				// Отвечаем пустым значением.
 				response.Type( request.Type() );
-				response.Param( request.Param() );
+				response.Param( request.Param() );	// надо (request.Param() % 0x8000)
 			}
 			else
 			{
@@ -493,9 +500,71 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 			break;
 		}
 
+		case L3_REQTYPE_SUBSCRIBE_PACK:
+		{
+			uint8_t *id_array_ptr = request.GetDataPtr();
+			uint8_t id_array_len = request.GetDataLength();
+			
+			uint16_t id_raw;
+			uint16_t id;
+			uint8_t unsubscribe;
+			StateDB::db_t db_obj;
+			for(uint8_t i = 0; i < id_array_len; i += 2)
+			{
+				id_raw = *((uint16_t*)&id_array_ptr[i]);
+				id = id_raw & 0x7FFF;
+				unsubscribe = id_raw >> 15;
+				
+				// Подписка
+				if(unsubscribe == 0)
+				{
+					DEBUG_LOG_TOPIC("L3_SUB_PACK", "ID: 0x%04X\n", id);
+					
+					SubsDB.Set(id, dev);
+					
+					if( DB.Get(id, db_obj) == true )
+					{
+						// Отправляем в устройство текущее значение.
+						response.Type(L3_REQTYPE_EVENTS);
+						response.Param(id);
+						response.PutData(db_obj.data, db_obj.length);
+					}
+					else
+					{
+						// Отправляем в устройство ошибку отсутствия данных.
+						response.Type(L3_REQTYPE_ERROR);
+						response.Param(id);
+						response.PutData(0xE0);
+						
+						// Отправляем в CAN пакет запроса значения.
+						L2Wrapper::packet_v2_t can_packet;
+						can_packet.id = id;
+						can_packet.raw_data_len = 1;
+						can_packet.func_id = 0x11;
+						L2.Send(can_packet);
+					}
+				}
+				// Отписка
+				else
+				{
+					DEBUG_LOG_TOPIC("L3_UNSUB_PACK", "ID: 0x%04X\n", id);
+					
+					SubsDB.Del(id, dev);
+					
+					// Отвечаем пустым значением.
+					//response.Type(L3_REQTYPE_EVENTS);
+					//response.Param(id);
+				}
+			}
+			
+			break;
+		}
+
         // Событие с телефона.
         case L3_REQTYPE_EVENTS:
         {
+			DEBUG_LOG_TOPIC("L3", "L3_REQTYPE_EVENTS");
+
             if(request.Param() < 0x0800)
             {
                 SubsDB.Set(request.Param(), dev, true);

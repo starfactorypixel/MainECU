@@ -505,6 +505,11 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 			uint8_t *id_array_ptr = request.GetDataPtr();
 			uint8_t id_array_len = request.GetDataLength();
 			
+			//DEBUG_LOG_ARRAY_HEX("SUB_PACK_hex", request.GetPacketPtr(), request.GetPacketLength());
+			//DEBUG_LOG_NEW_LINE();
+			
+			if(id_array_len % 2 != 0) break;
+			
 			uint16_t id_raw;
 			uint16_t id;
 			uint8_t unsubscribe;
@@ -518,23 +523,20 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				// Подписка
 				if(unsubscribe == 0)
 				{
-					DEBUG_LOG_TOPIC("L3_SUB_PACK", "ID: 0x%04X\n", id);
+					//DEBUG_LOG_TOPIC("L3_SUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, (id_array_len / 2), id);
 					
 					SubsDB.Set(id, dev);
 					
 					if( DB.Get(id, db_obj) == true )
 					{
 						// Отправляем в устройство текущее значение.
-						response.Type(L3_REQTYPE_EVENTS);
-						response.Param(id);
-						response.PutData(db_obj.data, db_obj.length);
+						L3.Send(dev, L3_REQTYPE_EVENTS, id, db_obj.data, db_obj.length);
 					}
 					else
 					{
 						// Отправляем в устройство ошибку отсутствия данных.
-						response.Type(L3_REQTYPE_ERROR);
-						response.Param(id);
-						response.PutData(0xE0);
+						uint8_t data[] = {0xE0};
+						L3.Send(dev, L3_REQTYPE_ERROR, id, data, sizeof(data));
 						
 						// Отправляем в CAN пакет запроса значения.
 						L2Wrapper::packet_v2_t can_packet;
@@ -547,7 +549,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				// Отписка
 				else
 				{
-					DEBUG_LOG_TOPIC("L3_UNSUB_PACK", "ID: 0x%04X\n", id);
+					//DEBUG_LOG_TOPIC("L3_UNSUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, (id_array_len / 2), id);
 					
 					SubsDB.Del(id, dev);
 					
@@ -556,6 +558,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 					//response.Param(id);
 				}
 			}
+			result = false;
 			
 			break;
 		}

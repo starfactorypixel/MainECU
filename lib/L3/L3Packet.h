@@ -227,7 +227,7 @@ class L3Packet
 		{
 			bool result = false;
 			
-			if(length <= _maxDataLength)
+			if((length + this->_putDataIndex) <= _maxDataLength)
 			{
 				memcpy(this->_packet + this->_putDataIndex + 6, data, length);
 				this->_putDataIndex += length;

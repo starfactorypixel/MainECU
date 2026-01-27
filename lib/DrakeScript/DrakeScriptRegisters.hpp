@@ -2,12 +2,8 @@
 #include <inttypes.h>
 #include <string.h>
 
-// Добавить проверку на то, что пытаемся получить регистрр, которого нету (за пределами массива)
-
 class DrakeScriptRegisters
 {
-	static constexpr uint8_t USER_REGISTER_COUNT = 5;
-	
 	public:
 		
 		typedef int32_t reg_type_t;
@@ -15,13 +11,11 @@ class DrakeScriptRegisters
 		{
 			REG_DUMMY = 0,
 
-			REG_PARAM0 = 1,
-			REG_PARAM1 = 2,
-			REG_PARAM2 = 3,
-			REG_PARAM3 = 4,
-
-
-			REG_SCRIPT_ID = 5,
+			REG_SCRIPT_ID = 1,
+			REG_PARAM0 = 2,
+			REG_PARAM1 = 3,
+			REG_PARAM2 = 4,
+			REG_PARAM3 = 5,
 
 			REG_A = 6,
 			REG_B = 7,
@@ -37,29 +31,37 @@ class DrakeScriptRegisters
 		
 		inline void RegisterAllClear()
 		{
-			memset(registers, 0x00, sizeof(registers));
+			memset(_registers, 0x00, sizeof(_registers));
 			
 			return;
 		}
 		
 		inline reg_type_t RegisterGet(reg_idx_t idx)
 		{
-			return registers[idx];
+			if(idx >= (sizeof(_registers) / sizeof(reg_type_t)))
+				return _registers[0];
+			
+			return _registers[idx];
 		}
 		
 		inline void RegisterSet(reg_idx_t idx, reg_type_t value)
 		{
-			registers[idx] = value;
-
+			if(idx >= (sizeof(_registers) / sizeof(reg_type_t)))
+				return;
+			
+			_registers[idx] = value;
 			return;
 		}
 		
 		inline reg_type_t &Register(reg_idx_t idx)
 		{
-			return registers[idx];
+			if(idx >= (sizeof(_registers) / sizeof(reg_type_t)))
+				return _registers[0];
+			
+			return _registers[idx];
 		}
 		
 	private:
 		
-		reg_type_t registers[1 + 4 + 5 + USER_REGISTER_COUNT];
+		reg_type_t _registers[1 + 5 + 9];
 };

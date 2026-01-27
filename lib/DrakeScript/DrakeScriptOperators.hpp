@@ -284,21 +284,8 @@ namespace DrakeScript
 	{
 		uint8_t opcode;
 	};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	
+	
 	static inline reg_type_t read_i32_fast(const uint8_t *data, var_type_t type)
 	{
 		switch(type)
@@ -344,42 +331,49 @@ namespace DrakeScript
 		
 		return 0;
 	}
-
-
-
-	static uint8_t write_i32_fast(uint8_t* dst, reg_type_t val, var_type_t type)
+	
+	static inline uint8_t write_i32_fast(uint8_t *dst, reg_type_t val, var_type_t type)
 	{
-		switch (type)
+		switch(type)
 		{
 			case VAR_BYTE:
 			case VAR_U8:
-				*(uint8_t*)dst = (uint8_t)val;
+			{
+				*(uint8_t *)dst = (uint8_t)val;
 				return 1;
-
+			}
 			case VAR_S8:
-				*(int8_t*)dst = (int8_t)val;
+			{
+				*(int8_t *)dst = (int8_t)val;
 				return 1;
-
+			}
 			case VAR_U16:
-				*(uint16_t*)dst = (uint16_t)val;
+			{
+				*(uint16_t *)dst = (uint16_t)val;
 				return 2;
-
+			}
 			case VAR_S16:
-				*(int16_t*)dst = (int16_t)val;
+			{
+				*(int16_t *)dst = (int16_t)val;
 				return 2;
-
+			}
 			case VAR_U32:
-				*(uint32_t*)dst = (uint32_t)val;
+			{
+				*(uint32_t *)dst = (uint32_t)val;
 				return 4;
-
+			}
 			case VAR_S32:
-				*(int32_t*)dst = (int32_t)val;
+			{
+				*(int32_t *)dst = (int32_t)val;
 				return 4;
-
+			}
 			default:
+			{
 				return 0;
+			}
 		}
+
+		return 0;
 	}
 
-	
 };

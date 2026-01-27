@@ -11,7 +11,7 @@ class DrakeScriptMapping
 		DrakeScriptMapping()
 		{
 			memset(_scripts_map, 0x00, sizeof(_scripts_map));
-			
+
 			return;
 		}
 
@@ -59,10 +59,10 @@ class DrakeScriptMapping
 		
 		struct script_map_t
 		{
-			uint32_t start_idx;		// Индекс начала скрипта
-			uint16_t length;		// Длина скрипта
-			int8_t mode;			// Режим работы скрипта: 0 - нету, -1 - отключён пользователем, -2 - отключён по ошибке, 1 - активен.
-			uint8_t _aligning;		// 
+			uint32_t start_idx;			// Индекс начала скрипта
+			uint16_t length;			// Длина скрипта
+			int8_t mode;				// Режим работы скрипта: 0 - нету, -1 - отключён пользователем, -2 - отключён по ошибке, 1 - активен.
+			//uint8_t _aligning;		// 
 		} _scripts_map[MAX_SCRIPTS_COUNT];
 		
 		uint8_t *_scripts_array = nullptr;

@@ -4,10 +4,13 @@
 
 namespace DrakeScript
 {
+	typedef DrakeScriptRegisters::reg_idx_t reg_idx_t;			// В core берутся эти типа а не из DrakeScriptRegisters.
+	typedef DrakeScriptRegisters::reg_type_t reg_type_t;
 	
 	enum opcode_idx_t : uint8_t
 	{
-		OP_ParserCfg = 0x01,
+		OP_ScriptInit = 0x01,
+		OP_TriggerParseReg = 0x55,
 		OP_SetScriptArgVal = 0x02,
 		OP_SetScriptArgReg8 = 0x03,
 		OP_SetScriptArgReg32 = 0x04,
@@ -37,20 +40,37 @@ namespace DrakeScript
 		OP_SubRegReg = 0x20,
 		OP_MulRegReg = 0x21,
 		OP_DivRegReg = 0x22,
-		OP_CanSendRaw11 = 0x1B,
-		OP_CanSendRegVal11 = 0x1C,
+		//OP_CanSendRaw11 = 0x1B,
+		//OP_CanSendRegVal11 = 0x1C,
 		OP_Goto = 0x1D,
 		OP_Exit = 0x1E,
 	};
+
+	enum var_type_t : uint8_t
+	{
+		VAR_BYTE = 0,
+		VAR_U8 = 1,
+		VAR_S8 = 2,
+		VAR_U16 = 3,
+		VAR_S16 = 4,
+		VAR_U32 = 5,
+		VAR_S32 = 6,
+	};
 	
 	
-	struct __attribute__((packed)) ParserCfg_t 
+	struct __attribute__((packed)) ScriptInit_t
 	{
 		uint8_t opcode;
-		uint8_t type;
-		uint8_t count;
-		uint8_t dummy[2];
+		uint8_t mode;
 		uint8_t data[4];
+	};
+	
+	struct __attribute__((packed)) TriggerParseReg_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+		var_type_t type;
+		uint8_t offset;
 	};
 	
 	struct __attribute__((packed)) SetScriptArgVal_t 
@@ -86,42 +106,42 @@ namespace DrakeScript
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 		uint16_t offset;
 	};
 	struct __attribute__((packed)) IfRegValNeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 		uint16_t offset;
 	};
 	struct __attribute__((packed)) IfRegValLss_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 		uint16_t offset;
 	};
 	struct __attribute__((packed)) IfRegValLeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 		uint16_t offset;
 	};
 	struct __attribute__((packed)) IfRegValGtr_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 		uint16_t offset;
 	};
 	struct __attribute__((packed)) IfRegValGeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 		uint16_t offset;
 	};
 
@@ -173,7 +193,7 @@ namespace DrakeScript
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 	};
 	struct __attribute__((packed)) SetRegReg_t
 	{
@@ -209,25 +229,25 @@ namespace DrakeScript
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 	};
 	struct __attribute__((packed)) SubRegVal_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 	};
 	struct __attribute__((packed)) MulRegVal_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 	};
 	struct __attribute__((packed)) DivRegVal_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
-		uint32_t value;
+		reg_type_t value;
 	};
 
 	struct __attribute__((packed)) AddRegReg_t
@@ -255,20 +275,6 @@ namespace DrakeScript
 		reg_idx_t reg2;
 	};
 	
-	struct __attribute__((packed)) CanSendRaw11_t
-	{
-		uint8_t opcode;
-		uint16_t can_id;
-		uint8_t data[8];
-	};
-	struct __attribute__((packed)) CanSendRegVal11_t
-	{
-		uint8_t opcode;
-		uint16_t can_id;
-		uint8_t fid;
-		reg_idx_t regs[3];
-	};
-	
 	struct __attribute__((packed)) Goto_t
 	{
 		uint8_t opcode;
@@ -278,5 +284,102 @@ namespace DrakeScript
 	{
 		uint8_t opcode;
 	};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	static inline reg_type_t read_i32_fast(const uint8_t *data, var_type_t type)
+	{
+		switch(type)
+		{
+			case VAR_BYTE:
+			case VAR_U8:
+			{
+				uint8_t v;
+				memcpy(&v, data, sizeof(v));
+				return v;
+			}
+			case VAR_S8:
+			{
+				int8_t v;
+				memcpy(&v, data, sizeof(v));
+				return v;
+			}
+			case VAR_U16:
+			{
+				uint16_t v;
+				memcpy(&v, data, sizeof(v));
+				return v;
+			}
+			case VAR_S16:
+			{
+				int16_t v;
+				memcpy(&v, data, sizeof(v));
+				return v;
+			}
+			case VAR_U32:
+			{
+				uint32_t v;
+				memcpy(&v, data, sizeof(v));
+				return (reg_type_t)v;
+			}
+			case VAR_S32:
+			{
+				int32_t v;
+				memcpy(&v, data, sizeof(v));
+				return v;
+			}
+		}
+		
+		return 0;
+	}
+
+
+
+	static uint8_t write_i32_fast(uint8_t* dst, reg_type_t val, var_type_t type)
+	{
+		switch (type)
+		{
+			case VAR_BYTE:
+			case VAR_U8:
+				*(uint8_t*)dst = (uint8_t)val;
+				return 1;
+
+			case VAR_S8:
+				*(int8_t*)dst = (int8_t)val;
+				return 1;
+
+			case VAR_U16:
+				*(uint16_t*)dst = (uint16_t)val;
+				return 2;
+
+			case VAR_S16:
+				*(int16_t*)dst = (int16_t)val;
+				return 2;
+
+			case VAR_U32:
+				*(uint32_t*)dst = (uint32_t)val;
+				return 4;
+
+			case VAR_S32:
+				*(int32_t*)dst = (int32_t)val;
+				return 4;
+
+			default:
+				return 0;
+		}
+	}
+
 	
 };

@@ -344,6 +344,15 @@ class DrakeScriptCore
 					offset += sizeof(DecReg_t);
 					break;
 				}
+				case OP_NotReg:
+				{
+					NotReg_t *obj = (NotReg_t *) bytes;
+					
+					_registers.Register(obj->reg1) = ~_registers.Register(obj->reg1);
+					
+					offset += sizeof(NotReg_t);
+					break;
+				}
 				case OP_ShiftLeftReg:
 				{
 					ShiftLeftReg_t *obj = (ShiftLeftReg_t *) bytes;
@@ -360,6 +369,42 @@ class DrakeScriptCore
 					_registers.Register(obj->reg1) >>= obj->count;
 					
 					offset += sizeof(ShiftRightReg_t);
+					break;
+				}
+				case OP_AndRegVal:
+				{
+					AndRegVal_t *obj = (AndRegVal_t *) bytes;
+					
+					_registers.Register(obj->reg1) &= obj->value;
+					
+					offset += sizeof(AndRegVal_t);
+					break;
+				}
+				case OP_AndRegReg:
+				{
+					AndRegReg_t *obj = (AndRegReg_t *) bytes;
+					
+					_registers.Register(obj->reg1) &= _registers.Register(obj->reg2);
+					
+					offset += sizeof(AndRegReg_t);
+					break;
+				}
+				case OP_OrRegVal:
+				{
+					OrRegVal_t *obj = (OrRegVal_t *) bytes;
+					
+					_registers.Register(obj->reg1) |= obj->value;
+					
+					offset += sizeof(OrRegVal_t);
+					break;
+				}
+				case OP_OrRegReg:
+				{
+					OrRegReg_t *obj = (OrRegReg_t *) bytes;
+					
+					_registers.Register(obj->reg1) |= _registers.Register(obj->reg2);
+					
+					offset += sizeof(OrRegReg_t);
 					break;
 				}
 				case OP_AddRegVal:
@@ -434,22 +479,6 @@ class DrakeScriptCore
 					offset += sizeof(DivRegReg_t);
 					break;
 				}
-				/*
-				case OP_CanSendRaw11:
-				{
-					CanSendRaw11_t *obj = (CanSendRaw11_t *) bytes;
-
-					offset += sizeof(CanSendRaw11_t);
-					break;
-				}
-				case OP_CanSendRegVal11:
-				{
-					CanSendRegVal11_t *obj = (CanSendRegVal11_t *) bytes;
-
-					offset += sizeof(CanSendRegVal11_t);
-					break;
-				}
-				*/
 				case OP_Goto:
 				{
 					Goto_t *obj = (Goto_t *) bytes;

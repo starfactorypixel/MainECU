@@ -30,8 +30,13 @@ namespace DrakeScript
 		OP_SetRegReg = 0x12,
 		OP_IncReg = 0x13,
 		OP_DecReg = 0x14,
+		OP_NotReg = 0x34,
 		OP_ShiftLeftReg = 0x19,
 		OP_ShiftRightReg = 0x1A,
+		OP_AndRegVal = 0x30,
+		OP_AndRegReg = 0x31,
+		OP_OrRegVal = 0x32,
+		OP_OrRegReg = 0x33,
 		OP_AddRegVal = 0x15,
 		OP_SubRegVal = 0x16,
 		OP_MulRegVal = 0x17,
@@ -40,8 +45,6 @@ namespace DrakeScript
 		OP_SubRegReg = 0x20,
 		OP_MulRegReg = 0x21,
 		OP_DivRegReg = 0x22,
-		//OP_CanSendRaw11 = 0x1B,
-		//OP_CanSendRegVal11 = 0x1C,
 		OP_Goto = 0x1D,
 		OP_Exit = 0x1E,
 	};
@@ -211,7 +214,11 @@ namespace DrakeScript
 		uint8_t opcode;
 		reg_idx_t reg1;
 	};
-
+	struct __attribute__((packed)) NotReg_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+	};
 	struct __attribute__((packed)) ShiftLeftReg_t
 	{
 		uint8_t opcode;
@@ -224,7 +231,30 @@ namespace DrakeScript
 		reg_idx_t reg1;
 		uint8_t count;
 	};
-
+	struct __attribute__((packed)) AndRegVal_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+		reg_type_t value;
+	};
+	struct __attribute__((packed)) AndRegReg_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+		reg_idx_t reg2;
+	};
+	struct __attribute__((packed)) OrRegVal_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+		reg_type_t value;
+	};
+	struct __attribute__((packed)) OrRegReg_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+		reg_idx_t reg2;
+	};
 	struct __attribute__((packed)) AddRegVal_t
 	{
 		uint8_t opcode;

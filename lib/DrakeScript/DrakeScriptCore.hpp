@@ -63,11 +63,9 @@ class DrakeScriptCore
 		*/
 		void Trigger(uint16_t script_id, const uint8_t *data, uint8_t length)
 		{
-			if(_mapping->CheckScriptRunnable(script_id) == false) return;
-			
 			uint8_t *script_ptr;
 			uint16_t script_length;
-			if(_mapping->GetScriptMap(script_id, script_ptr, script_length) == false) return;
+			if(_mapping->GetScriptPtr(script_id, script_ptr, script_length) == false) return;
 			
 			_trigger_data.script_id = script_id;
 			_trigger_data.data = data;
@@ -524,11 +522,9 @@ class DrakeScriptCore
 		
 		void _SetScriptArg(uint16_t script_id, uint8_t mode, uint8_t *data)													// Сделать саморедактирование, например по 0xFFFF
 		{
-			if(_mapping->CheckScriptRunnable(script_id) == false) return;
-			
 			uint8_t *script_ptr;
 			uint16_t script_length;
-			if(_mapping->GetScriptMap(script_id, script_ptr, script_length) == false) return;
+			if(_mapping->GetScriptPtr(script_id, script_ptr, script_length) == false) return;
 			
 			ScriptInit_t *obj = (ScriptInit_t *) script_ptr;
 			obj->mode = mode;

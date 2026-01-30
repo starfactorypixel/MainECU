@@ -34,27 +34,19 @@ class DrakeScriptMapping
 			return;
 		}
 		
-		
-		bool GetScriptMap(uint16_t id, uint8_t *array_ptr, uint16_t &length)
+		// Получить указатель на начало скрипта и его длину в байтах
+		bool GetScriptPtr(uint16_t id, uint8_t *array_ptr, uint16_t &length)
 		{
 			if(id >= MAX_SCRIPTS_COUNT) return false;
-			
 			auto &obj = _scripts_map[id];
+			if(obj.mode <= 0) return false;
+			
 			array_ptr = &_scripts_array[obj.start_idx];
 			length = obj.length;
 			
 			return true;
 		}
 		
-		bool CheckScriptRunnable(uint16_t id)
-		{
-			if(id >= MAX_SCRIPTS_COUNT) return false;
-			auto &obj = _scripts_map[id];
-			if(obj.mode <= 0) return false;
-			
-			return true;
-		}
-
 	private:
 		
 		struct script_map_t

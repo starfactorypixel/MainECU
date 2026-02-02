@@ -190,120 +190,120 @@ class DrakeScriptCore
 				{
 					IfRegValEqu_t *obj = (IfRegValEqu_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) == obj->value))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegValEqu_t);
+					if(!(_registers.Register(obj->reg1) == obj->value))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegValNeq:
 				{
 					IfRegValNeq_t *obj = (IfRegValNeq_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) != obj->value))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegValNeq_t);
+					if(!(_registers.Register(obj->reg1) != obj->value))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegValLss:
 				{
 					IfRegValLss_t *obj = (IfRegValLss_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) < obj->value))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegValLss_t);
+					if(!(_registers.Register(obj->reg1) < obj->value))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegValLeq:
 				{
 					IfRegValLeq_t *obj = (IfRegValLeq_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) <= obj->value))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegValLeq_t);
+					if(!(_registers.Register(obj->reg1) <= obj->value))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegValGtr:
 				{
 					IfRegValGtr_t *obj = (IfRegValGtr_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) > obj->value))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegValGtr_t);
+					if(!(_registers.Register(obj->reg1) > obj->value))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegValGeq:
 				{
 					IfRegValGeq_t *obj = (IfRegValGeq_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) >= obj->value))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegValGeq_t);
+					if(!(_registers.Register(obj->reg1) >= obj->value))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegRegEqu:
 				{
 					IfRegRegEqu_t *obj = (IfRegRegEqu_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) == _registers.Register(obj->reg2)))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegRegEqu_t);
+					if(!(_registers.Register(obj->reg1) == _registers.Register(obj->reg2)))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegReglNeq:
 				{
 					IfRegReglNeq_t *obj = (IfRegReglNeq_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) != _registers.Register(obj->reg2)))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegReglNeq_t);
+					if(!(_registers.Register(obj->reg1) != _registers.Register(obj->reg2)))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegRegLss:
 				{
 					IfRegRegLss_t *obj = (IfRegRegLss_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) < _registers.Register(obj->reg2)))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegRegLss_t);
+					if(!(_registers.Register(obj->reg1) < _registers.Register(obj->reg2)))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegRegLeq:
 				{
 					IfRegRegLeq_t *obj = (IfRegRegLeq_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) <= _registers.Register(obj->reg2)))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegRegLeq_t);
+					if(!(_registers.Register(obj->reg1) <= _registers.Register(obj->reg2)))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegRegGtr:
 				{
 					IfRegRegGtr_t *obj = (IfRegRegGtr_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) > _registers.Register(obj->reg2)))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegRegGtr_t);
+					if(!(_registers.Register(obj->reg1) > _registers.Register(obj->reg2)))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_IfRegRegGeq:
 				{
 					IfRegRegGeq_t *obj = (IfRegRegGeq_t *) bytes;
 					
-					if(!(_registers.Register(obj->reg1) >= _registers.Register(obj->reg2)))
-						offset += obj->offset;
-					
 					offset += sizeof(IfRegRegGeq_t);
+					if(!(_registers.Register(obj->reg1) >= _registers.Register(obj->reg2)))
+						offset = obj->to_addr;
+					
 					break;
 				}
 				case OP_SetRegVal:
@@ -481,7 +481,7 @@ class DrakeScriptCore
 				{
 					Goto_t *obj = (Goto_t *) bytes;
 					
-					offset = obj->offset;
+					offset = obj->to_addr;
 					break;
 				}
 				case OP_Exit:

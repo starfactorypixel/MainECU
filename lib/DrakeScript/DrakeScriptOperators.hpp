@@ -110,42 +110,42 @@ namespace DrakeScript
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_type_t value;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegValNeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_type_t value;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegValLss_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_type_t value;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegValLeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_type_t value;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegValGtr_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_type_t value;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegValGeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_type_t value;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 
 	struct __attribute__((packed)) IfRegRegEqu_t
@@ -153,42 +153,42 @@ namespace DrakeScript
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_idx_t reg2;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegReglNeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_idx_t reg2;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegRegLss_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_idx_t reg2;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegRegLeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_idx_t reg2;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegRegGtr_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_idx_t reg2;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) IfRegRegGeq_t
 	{
 		uint8_t opcode;
 		reg_idx_t reg1;
 		reg_idx_t reg2;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 
 
@@ -308,7 +308,7 @@ namespace DrakeScript
 	struct __attribute__((packed)) Goto_t
 	{
 		uint8_t opcode;
-		uint16_t offset;
+		uint16_t to_addr;
 	};
 	struct __attribute__((packed)) Exit_t
 	{

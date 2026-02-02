@@ -125,7 +125,7 @@ class DrakeScriptCore
 						_registers.Register(_registers.REG_PARAM0) = value;
 					}
 					
-					offset += sizeof(ScriptInit_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_TriggerParseReg:
@@ -134,7 +134,7 @@ class DrakeScriptCore
 
 					_registers.Register(obj->reg1) = read_i32_fast(&_trigger_data.data[obj->offset], obj->type);
 					
-					offset += sizeof(TriggerParseReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_SetScriptArgVal:
@@ -150,7 +150,7 @@ class DrakeScriptCore
 					};
 					_SetScriptArg(obj->script_id, 0, data);
 					
-					offset += sizeof(SetScriptArgVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_SetScriptArgReg8:
@@ -166,7 +166,7 @@ class DrakeScriptCore
 					};
 					_SetScriptArg(obj->script_id, 0, data);
 					
-					offset += sizeof(SetScriptArgReg8_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_SetScriptArgReg32:
@@ -182,7 +182,7 @@ class DrakeScriptCore
 					};
 					_SetScriptArg(obj->script_id, 1, data);
 					
-					offset += sizeof(SetScriptArgReg32_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				
@@ -190,7 +190,7 @@ class DrakeScriptCore
 				{
 					IfRegValEqu_t *obj = (IfRegValEqu_t *) bytes;
 					
-					offset += sizeof(IfRegValEqu_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) == obj->value))
 						offset = obj->to_addr;
 					
@@ -200,7 +200,7 @@ class DrakeScriptCore
 				{
 					IfRegValNeq_t *obj = (IfRegValNeq_t *) bytes;
 					
-					offset += sizeof(IfRegValNeq_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) != obj->value))
 						offset = obj->to_addr;
 					
@@ -210,7 +210,7 @@ class DrakeScriptCore
 				{
 					IfRegValLss_t *obj = (IfRegValLss_t *) bytes;
 					
-					offset += sizeof(IfRegValLss_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) < obj->value))
 						offset = obj->to_addr;
 					
@@ -220,7 +220,7 @@ class DrakeScriptCore
 				{
 					IfRegValLeq_t *obj = (IfRegValLeq_t *) bytes;
 					
-					offset += sizeof(IfRegValLeq_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) <= obj->value))
 						offset = obj->to_addr;
 					
@@ -230,7 +230,7 @@ class DrakeScriptCore
 				{
 					IfRegValGtr_t *obj = (IfRegValGtr_t *) bytes;
 					
-					offset += sizeof(IfRegValGtr_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) > obj->value))
 						offset = obj->to_addr;
 					
@@ -240,7 +240,7 @@ class DrakeScriptCore
 				{
 					IfRegValGeq_t *obj = (IfRegValGeq_t *) bytes;
 					
-					offset += sizeof(IfRegValGeq_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) >= obj->value))
 						offset = obj->to_addr;
 					
@@ -250,7 +250,7 @@ class DrakeScriptCore
 				{
 					IfRegRegEqu_t *obj = (IfRegRegEqu_t *) bytes;
 					
-					offset += sizeof(IfRegRegEqu_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) == _registers.Register(obj->reg2)))
 						offset = obj->to_addr;
 					
@@ -260,7 +260,7 @@ class DrakeScriptCore
 				{
 					IfRegReglNeq_t *obj = (IfRegReglNeq_t *) bytes;
 					
-					offset += sizeof(IfRegReglNeq_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) != _registers.Register(obj->reg2)))
 						offset = obj->to_addr;
 					
@@ -270,7 +270,7 @@ class DrakeScriptCore
 				{
 					IfRegRegLss_t *obj = (IfRegRegLss_t *) bytes;
 					
-					offset += sizeof(IfRegRegLss_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) < _registers.Register(obj->reg2)))
 						offset = obj->to_addr;
 					
@@ -280,7 +280,7 @@ class DrakeScriptCore
 				{
 					IfRegRegLeq_t *obj = (IfRegRegLeq_t *) bytes;
 					
-					offset += sizeof(IfRegRegLeq_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) <= _registers.Register(obj->reg2)))
 						offset = obj->to_addr;
 					
@@ -290,7 +290,7 @@ class DrakeScriptCore
 				{
 					IfRegRegGtr_t *obj = (IfRegRegGtr_t *) bytes;
 					
-					offset += sizeof(IfRegRegGtr_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) > _registers.Register(obj->reg2)))
 						offset = obj->to_addr;
 					
@@ -300,7 +300,7 @@ class DrakeScriptCore
 				{
 					IfRegRegGeq_t *obj = (IfRegRegGeq_t *) bytes;
 					
-					offset += sizeof(IfRegRegGeq_t);
+					offset += sizeof(*obj);
 					if(!(_registers.Register(obj->reg1) >= _registers.Register(obj->reg2)))
 						offset = obj->to_addr;
 					
@@ -312,7 +312,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) = obj->value;
 					
-					offset += sizeof(SetRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_SetRegReg:
@@ -321,7 +321,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) = _registers.RegisterGet(obj->reg2);
 					
-					offset += sizeof(SetRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_IncReg:
@@ -330,7 +330,7 @@ class DrakeScriptCore
 
 					_registers.Register(obj->reg1) += 1;
 					
-					offset += sizeof(IncReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_DecReg:
@@ -339,7 +339,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) -= 1;
 					
-					offset += sizeof(DecReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_NotReg:
@@ -348,7 +348,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) = ~_registers.Register(obj->reg1);
 					
-					offset += sizeof(NotReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_ShiftLeftReg:
@@ -357,7 +357,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) <<= obj->count;
 					
-					offset += sizeof(ShiftLeftReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_ShiftRightReg:
@@ -366,7 +366,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) >>= obj->count;
 					
-					offset += sizeof(ShiftRightReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_AndRegVal:
@@ -375,7 +375,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) &= obj->value;
 					
-					offset += sizeof(AndRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_AndRegReg:
@@ -384,7 +384,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) &= _registers.Register(obj->reg2);
 					
-					offset += sizeof(AndRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_OrRegVal:
@@ -393,7 +393,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) |= obj->value;
 					
-					offset += sizeof(OrRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_OrRegReg:
@@ -402,7 +402,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) |= _registers.Register(obj->reg2);
 					
-					offset += sizeof(OrRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_AddRegVal:
@@ -411,7 +411,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) += obj->value;
 					
-					offset += sizeof(AddRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_SubRegVal:
@@ -420,7 +420,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) -= obj->value;
 					
-					offset += sizeof(SubRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_MulRegVal:
@@ -429,7 +429,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) *= obj->value;
 					
-					offset += sizeof(MulRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_DivRegVal:
@@ -438,7 +438,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) /= obj->value;
 					
-					offset += sizeof(DivRegVal_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_AddRegReg:
@@ -447,7 +447,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) += _registers.Register(obj->reg2);
 					
-					offset += sizeof(AddRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_SubRegReg:
@@ -456,7 +456,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) -= _registers.Register(obj->reg2);
 					
-					offset += sizeof(SubRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_MulRegReg:
@@ -465,7 +465,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) *= _registers.Register(obj->reg2);
 					
-					offset += sizeof(MulRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_DivRegReg:
@@ -474,7 +474,7 @@ class DrakeScriptCore
 					
 					_registers.Register(obj->reg1) /= _registers.Register(obj->reg2);
 					
-					offset += sizeof(DivRegReg_t);
+					offset += sizeof(*obj);
 					break;
 				}
 				case OP_Goto:

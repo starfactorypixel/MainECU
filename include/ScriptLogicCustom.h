@@ -38,7 +38,7 @@ namespace ScriptLogic
 
 				L2.Send(obj->can_id, obj->data, obj->length);
 
-				offset += sizeof(CanSendRaw11_t);
+				offset += sizeof(*obj);
 				break;
 			}
 			case 0xA1:
@@ -61,7 +61,7 @@ namespace ScriptLogic
 				
 				L2.Send(obj->can_id, data, obj->length);
 				
-				offset += sizeof(CanSendRegVal11_t);
+				offset += sizeof(*obj);
 				break;
 			}
 		}

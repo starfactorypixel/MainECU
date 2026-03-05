@@ -35,7 +35,7 @@ class DrakeScriptMapping
 		}
 		
 		// Получить указатель на начало скрипта и его длину в байтах
-		bool GetScriptPtr(uint16_t id, uint8_t *array_ptr, uint16_t &length)
+		bool GetScriptPtr(uint16_t id, uint8_t *&array_ptr, uint16_t &length)
 		{
 			if(id >= MAX_SCRIPTS_COUNT) return false;
 			auto &obj = _scripts_map[id];

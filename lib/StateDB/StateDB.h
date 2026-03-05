@@ -1,7 +1,7 @@
 /*
 	Класс базы данных полученных параметров из шины CAN.
 	Пока настроен на версию CAN 2.0A. Реализация версии 2.0B потребует использовать другой подход, с динамическими списками :(
-	В данный момент: (1 + 8 + 1 + 4) * 2048 = 26624 = 28КБ SRAM памяти занимает эта БД.
+	В данный момент: (1 + 1 + 8 + 4) * 2048 = 28672 = 28КБ SRAM памяти занимает эта БД.
 */
 
 #pragma once
@@ -27,7 +27,7 @@ class StateDB
 		StateDB()
 		{
 			memset(&_db, 0x00, sizeof(_db));
-			memset((void *)_pending_mask, 0x00, sizeof(_pending_mask));
+			memset((void *)_update_mask, 0x00, sizeof(_update_mask));
 			
 			return;
 		}
@@ -46,12 +46,14 @@ class StateDB
 
 			return true;
 		}
-		
-		bool Set(uint16_t id, db_t &obj)
+
+		bool Set(uint16_t id, const db_t &obj)
 		{
 			if(id >= _max_id) return false;
 			
-			memcpy(&_db[id], &obj, sizeof(db_t));
+			db_t &db_obj = _db[id];
+			db_obj = obj;
+			db_obj.isset = 1U;
 			_mark_updated(id);
 			
 			return true;
@@ -70,15 +72,17 @@ class StateDB
 			
 			return true;
 		}
-
+		
 		bool Get(uint16_t id, db_t &obj)
 		{
 			if(id >= _max_id) return false;
 			
 			db_t &db_obj = _db[id];
+			if(db_obj.isset == 0U) return false;
+			
 			obj = db_obj;
 			
-			return (db_obj.isset == 1U);
+			return true;
 		}
 		
 		bool Del(uint16_t id)
@@ -90,29 +94,11 @@ class StateDB
 			return true;
 		}
 		
-		void Processing2(uint32_t &time, void (*func)(uint16_t can_id, db_t &db_obj))
-		{
-			//uint16_t idx = 0;
-			//for(db_t &obj : _db)
-			for(uint16_t idx = 0; idx < _max_id; ++idx)
-			{
-				db_t &obj = _db[idx];
-				
-				if(obj.isset == 1U) continue;
-				
-				func(idx, obj);
-				
-				//++idx;
-			}
-			
-			return;
-		}
-		
 		void Processing(void (*func)(uint16_t can_id, db_t &obj))
 		{
-			for(uint16_t word = 0; word < (sizeof(_pending_mask) / sizeof(_pending_mask[0])); ++word)
+			for(uint16_t word = 0; word < (sizeof(_update_mask) / sizeof(_update_mask[0])); ++word)
 			{
-				uint16_t bits = __atomic_exchange_n(&_pending_mask[word], 0, __ATOMIC_ACQUIRE);
+				uint16_t bits = __atomic_exchange_n(&_update_mask[word], 0, __ATOMIC_ACQUIRE);
 				
 				while(bits)
 				{
@@ -120,9 +106,7 @@ class StateDB
 					uint16_t idx = (word << 4) + bit;
 					
 					db_t &db_obj = _db[idx];
-					
-					if(db_obj.isset)
-						func(idx, db_obj);
+					func(idx, db_obj);
 					
 					bits &= ~(1U << bit);
 				}
@@ -148,14 +132,14 @@ class StateDB
 		
 		inline void _mark_updated(uint16_t idx)
 		{
-			uint32_t word = idx >> 4;
-			uint32_t mask = 1U << (idx & 0x0F);
-			__atomic_fetch_or(&_pending_mask[word], mask, __ATOMIC_RELEASE);
+			uint16_t word = idx >> 4;
+			uint16_t mask = 1U << (idx & 0x0F);
+			__atomic_fetch_or(&_update_mask[word], mask, __ATOMIC_RELEASE);
 		}
 		
 		db_t _db[_max_id];
 		
 		// Массив-маска обновлённых данных
-		volatile uint16_t _pending_mask[_max_id / 16];
+		volatile uint16_t _update_mask[_max_id / 16];
 
 };

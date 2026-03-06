@@ -32,26 +32,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
-      with:
-        languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
-
-    - name: Run manual build steps
-      if: matrix.build-mode == 'manual'
-      shell: bash
-      run: |
-        python -m pip install --upgrade pip
-        pip install --upgrade platformio
-
-        # cache directories expected by PlatformIO CI
-        mkdir -p ~/.cache/pip
-        mkdir -p ~/.platformio/.cache
-
-        # build project so CodeQL can trace compiler calls
-        pio run
-
     - name: Cache PlatformIO
       if: matrix.language == 'c-cpp'
       uses: actions/cache@v4
@@ -60,6 +40,33 @@ jobs:
           ~/.cache/pip
           ~/.platformio/.cache
         key: ${{ runner.os }}-pio
+
+    - name: Setup Python
+      if: matrix.language == 'c-cpp'
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install PlatformIO
+      if: matrix.language == 'c-cpp'
+      run: pip install --upgrade platformio
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        queries: security-extended,security-and-quality
+
+    - name: Run manual build steps
+      if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo "===== Static analysis (PlatformIO / Cppcheck) ====="
+        pio check
+
+        echo "===== PlatformIO build ====="
+        pio run
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

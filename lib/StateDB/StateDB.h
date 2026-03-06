@@ -5,8 +5,7 @@
 */
 
 #pragma once
-
-#include <string.h>
+#include <inttypes.h>
 #include <L3Constants.h>
 
 class StateDB
@@ -18,19 +17,14 @@ class StateDB
 		
 		struct __attribute__((packed)) db_t
 		{
-			uint8_t isset;					// Флаг наличия данных в ячейке.
-			uint8_t length;					// Полезная длина данных.
-			uint8_t data[_max_data];		// Байты данных, как в CAN пакете.
-			uint32_t time;					// Время последнего изменения данных.
+			uint8_t isset;						// Флаг наличия данных в ячейке.
+			uint8_t length;						// Полезная длина данных.
+			uint8_t data[_max_data];			// Байты данных, как в CAN пакете.
+			uint32_t time;						// Время последнего изменения данных.
 		};
 		
-		StateDB()
-		{
-			memset(&_db, 0x00, sizeof(_db));
-			memset((void *)_update_mask, 0x00, sizeof(_update_mask));
-			
-			return;
-		}
+		StateDB() : _db{}, _update_mask{}
+		{}
 		
 		bool Set(uint16_t id, uint8_t *data, uint8_t length, uint32_t time)
 		{
@@ -137,9 +131,10 @@ class StateDB
 			__atomic_fetch_or(&_update_mask[word], mask, __ATOMIC_RELEASE);
 		}
 		
+		// Объект всех данных
 		db_t _db[_max_id];
 		
 		// Массив-маска обновлённых данных
 		volatile uint16_t _update_mask[_max_id / 16];
-
+		
 };

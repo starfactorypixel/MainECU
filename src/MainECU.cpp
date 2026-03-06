@@ -5,20 +5,19 @@
 #include <Arduino.h>
 
 #include <LoggerLibrary.h>
+#include <About.h>
 #include <Config.h>
 #include <Security.h>
 
 #include <StateDB.h>
 #include <L2Wrapper.h>
 #include <L3Wrapper.h>
-#include <L3SubscriptionsDB.h>
+#include <L3SubscriptionDB.h>
 #include <VirtualValue.h>
-#include <CANScripts.h>
 
-#include <SPI.h>
+#include "ScriptLogic.h"
 
-
-StateDB DB;
+//#include <SPI.h>
 
 
 
@@ -46,19 +45,17 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
 void L3OnReset(L3DevType_t dev);
 
-L3SubscriptionsDB SubsDB;
+StateDB DB;
+L3SubscriptionDB SubsDB;
 
 
 VirtualValue VV;
-
-CANScripts Scripts(&L2, &DB);
 
 
 #if defined(USE_EMULATOR)
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
-	DB.SetObjType(id, 0x01);
 	DB.Set(id, bytes, length, time);
 	
 	return;
@@ -97,6 +94,11 @@ VirtualDeviceInterface *emulator_objects[] =
 	new VirtualDevice<int16_t>(0x014C, 0x61, -49, 70, 1000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<int16_t>(0x014D, 0x61, -49, 70, 1000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint32_t>(0x014E, 0x61, 0, 999999, 5000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
+
+
+	new VirtualDevice<int16_t>(0x0184, 0x61, -1000, 1000, 1000, 1, 1, VirtualDeviceInterface::ALG_RANDOM),
+	new VirtualDevice<int16_t>(0x0185, 0x61, -1000, 1000, 1000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
+
 	new VirtualDevice<uint8_t>(0x0186, 0x61, 58, 100, 10000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<uint8_t>(0x0187, 0x61, 58, 100, 10000, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
 	new VirtualDevice<int16_t>(0x0188, 0x61, -12100, 24200, 250, 1, 1, VirtualDeviceInterface::ALG_MINFADEMAX),
@@ -191,10 +193,12 @@ void setup()
     Serial.begin(500000);
     Serial.println("Start Main ECU");
 
+	About::Setup();
 	Config::Setup();
 	Security::Setup();
+	ScriptLogic::Setup();
 
-	SPI::Setup();
+	//SPI::Setup();
 
 
 	// ------------------------------------------------------------------------------------
@@ -226,7 +230,7 @@ void setup()
     L2.RegCallback(L2OnRX, L2OnError);
     L2.Init();
 
-	SPI::Dev_Active(SPI::PIN_CS_CAN_RS);
+	//SPI::Dev_Active(SPI::PIN_CS_CAN_RS);
 
     
     L3.AddDevice(L3Driver_BT);
@@ -272,14 +276,6 @@ void setup()
 
     });
     
-
-
-
-
-
-
-
-    
     return;
 }
 
@@ -290,10 +286,12 @@ void loop()
 {
     current_time = millis();
 
+	About::Loop(current_time);
 	Config::Loop(current_time);
 	Security::Loop(current_time);
+	ScriptLogic::Loop(current_time);
 
-	SPI::Loop(current_time);
+	//SPI::Loop(current_time);
 
     L2.Processing(current_time);
 
@@ -304,61 +302,27 @@ void loop()
 	{
 		wqeqqwe = millis();
 		DEBUG_LOG_TOPIC("SUB_LIST", "");
-		SubsDB.Dump(L3_DEVTYPE_BLUETOOTH, [](uint16_t &id)
+		SubsDB.Dump(L3_DEVTYPE_BLUETOOTH, [](uint16_t id)
 		{
 			DEBUG_LOG_SIMPLE("0x%04x, ", id);
 		});
 		DEBUG_LOG_SIMPLE("err: %d\n", global_error_count);
 	}
     
-	DB.Processing(current_time, [](uint16_t id, StateDB::db_t &obj)
+	DB.Processing([](uint16_t id, StateDB::db_t &obj)
 	{
+		// Выполняем скрипты для id
+		ScriptLogic::ScriptObj.Trigger(id, obj.data, obj.length);
 		
-		
-		Scripts.Processing(id, obj);
-
-
-
-		// Не смотри сюда, это бред, ужас и вообще позор всего С++.
-		// Потом перепишу.. Обещаю :'(
-		L3DevType_t subs = SubsDB.GetDev(id);
-
-
-/*
-		if(obj.type == 0x02)
+		// Получаем подписанные устройства для id и отправляем данные
+		uint8_t subs = SubsDB.GetDevices(id);
+		while(subs)
 		{
-			L3PacketTypes::dev_info_t dev_info = {};
-			dev_info.baseID = id;
-			dev_info.type = (obj.data[1] >> 3);
-			dev_info.hw_ver = (obj.data[1] & 0x07);
-			dev_info.sw_ver = (obj.data[2] >> 2);
-			dev_info.proto_ver = (obj.data[2] & 0x03);
-			memcpy((void*)&dev_info.uptime, &obj.data[3], 4);
-			
-			L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_SERVICES, 0x0000, (uint8_t*)&dev_info, sizeof(dev_info));
-		}
-*/
-
-		
-		if(subs == L3_DEVTYPE_NONE) return;
-		
-		if( subs & L3_DEVTYPE_BLUETOOTH )
-		{
-			DEBUG_LOG_TOPIC("L3_Send", "BT id: 0x%04X", id);
-			L3.Send(L3_DEVTYPE_BLUETOOTH, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-			DEBUG_LOG_SIMPLE(" done;\n");
-		}
-		if( subs & L3_DEVTYPE_DASHBOARD )
-		{
-			DEBUG_LOG_TOPIC("L3_Send", "DB id: 0x%04X", id);
-			L3.Send(L3_DEVTYPE_DASHBOARD, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-			DEBUG_LOG_SIMPLE(" done;\n");
-		}
-		if( subs & L3_DEVTYPE_COMPUTER )
-		{
-			DEBUG_LOG_TOPIC("L3_Send", "UART id: 0x%04X", id);
-			L3.Send(L3_DEVTYPE_COMPUTER, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-			DEBUG_LOG_SIMPLE(" done;\n");
+			uint8_t bit = subs & -subs;
+			//DEBUG_LOG_TOPIC("L3_Send", "Dev: 0x%02X, ID: 0x%04X ...", bit, id);
+			L3.Send((L3DevType_t)bit, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
+			//DEBUG_LOG_SIMPLE(" done;\n");
+			subs &= ~bit;
 		}
 	});
 
@@ -381,7 +345,6 @@ void loop()
 
 
 
-
 #if defined(USE_EMULATOR)
 	emulator.Processing(current_time);
 #endif
@@ -389,6 +352,8 @@ void loop()
 
     return;
 }
+
+
 
 
 // Приём пакета по протоколу L3. Реализовано.
@@ -443,7 +408,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 		{
 			if(request.Param() < 0x0800)
 			{
-				SubsDB.Set(request.Param(), dev);
+				SubsDB.Subscribe(request.Param(), dev, false);
 
 				DEBUG_LOG_TOPIC("L3_SUB", "ID: 0x%04X\n", request.Param());
 				
@@ -479,7 +444,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 			}
 			else if( (request.Param() % 0x8000) < 0x0800 )
 			{
-				SubsDB.Del( (request.Param() % 0x8000), dev);
+				SubsDB.Unsubscribe( (request.Param() % 0x8000), dev );
 
 				DEBUG_LOG_TOPIC("L3_UNSUB", "ID: 0x%04X\n", request.Param());
 				
@@ -525,7 +490,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				{
 					//DEBUG_LOG_TOPIC("L3_SUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, (id_array_len / 2), id);
 					
-					SubsDB.Set(id, dev);
+					SubsDB.Subscribe(id, dev, false);
 					
 					if( DB.Get(id, db_obj) == true )
 					{
@@ -551,7 +516,7 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				{
 					//DEBUG_LOG_TOPIC("L3_UNSUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, (id_array_len / 2), id);
 					
-					SubsDB.Del(id, dev);
+					SubsDB.Unsubscribe(id, dev);
 					
 					// Отвечаем пустым значением.
 					//response.Type(L3_REQTYPE_EVENTS);
@@ -566,11 +531,16 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
         // Событие с телефона.
         case L3_REQTYPE_EVENTS:
         {
-			DEBUG_LOG_TOPIC("L3", "L3_REQTYPE_EVENTS");
+			//DEBUG_LOG_TOPIC("L3", "L3_REQTYPE_EVENTS");
+			//DEBUG_LOG_NEW_LINE();
+
+			DEBUG_LOG_TOPIC("L3_ReqEvent", "ID: %d, %RawPacket(%d): ", request.Param(), request.GetDataLength());
+			DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
+			DEBUG_LOG_SIMPLE(";\n");
 
             if(request.Param() < 0x0800)
             {
-                SubsDB.Set(request.Param(), dev, true);
+                SubsDB.Subscribe(request.Param(), dev, true);
 
 /*
                 //L2Wrapper::packet_t can_packet = { request.Param(), false, false, 0, request.GetDataLength() };
@@ -626,6 +596,11 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 
             break;
         }
+		case 0x1B:
+		{
+			result = ScriptLogic::L3Rx(request, response);
+			break;
+		}
         default:
         {
             response.Type(L3_REQTYPE_ERROR);
@@ -696,7 +671,7 @@ void L3OnReset(L3DevType_t dev)
 {
 	DEBUG_LOG_TOPIC("L3_OnRst", "dev: 0x%02X;\n", dev);
 	
-	SubsDB.DelDev(dev);
+	SubsDB.Unsubscribe(dev);
 	
 	return;
 }
@@ -714,21 +689,21 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 	//DEBUG_LOG_SIMPLE(";\n");
 
 	//#warning Remove this after debug !!!1
-	DB.SetObjType(request.id, 0x01);
+	//DB.SetObjType(request.id, 0x01);
 	
 	// Получен ответ на запрос типа CAN объекта.
-	if(request.length == 2 && request.data[0] == 0x7A)
-	{
-		DB.SetObjType(request.id, request.data[1]);
-
-		DEBUG_LOG_TOPIC("L2_DEB", "SET, addr: 0x%04X, type: 0x%02X;\n", request.id, request.data[1]);
-	}
+	//if(request.length == 2 && request.data[0] == 0x7A)
+	//{
+	//	DB.SetObjType(request.id, request.data[1]);
+	//
+	//	DEBUG_LOG_TOPIC("L2_DEB", "SET, addr: 0x%04X, type: 0x%02X;\n", request.id, request.data[1]);
+	//}
 	// Получен любой другой CAN пакет.
-	else
+	//else
 	{
 		// Тип CAN объекта неизвестен.
-		if(DB.GetObjType(request.id) == 0)
-		{
+		//if(DB.GetObjType(request.id) == 0)
+		//{
 			/*
 			response.address = request.address;
 			response.extended = false;
@@ -743,9 +718,35 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			DEBUG_LOG_TOPIC("L2_DEB", "GET, addr: 0x%04X;\n", request.address);
 			// Отправить 3 раза и подождать минуту.
 			*/
+		//}
+
+
+
+		static constexpr bool filter_table[256] = 
+		{
+			// x0     x1     x2     x3     x4     x5     x6     x7     x8     x9     xA     xB     xC     xD     xE     xF
+			false, false, false, false, false, false, false, false, false, false,  true, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false,  true,  true,  true, false,  true, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false,  true, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false
+		};
+
+		if(filter_table[request.data[0]])
+		{
+			DB.Set(request.id, request.data, request.length, millis());
 		}
-		
-		DB.Set(request.id, request.data, request.length, millis());
 	}
 	
 	return result;

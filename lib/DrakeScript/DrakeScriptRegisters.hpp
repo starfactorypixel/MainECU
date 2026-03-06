@@ -28,6 +28,8 @@ class DrakeScriptRegisters
 			REG_I = 14,
 		};
 		
+		DrakeScriptRegisters() : _registers{}
+		{}
 		
 		inline void RegisterAllClear()
 		{

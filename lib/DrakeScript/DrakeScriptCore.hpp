@@ -14,13 +14,8 @@ class DrakeScriptCore
 	
 	public:
 		
-		DrakeScriptCore(DrakeScriptMapping &map) : _mapping(map)
-		{
-			memset(&_trigger_data, 0x00, sizeof(_trigger_data));
-			memset(_custom_opcode, 0x00, sizeof(_custom_opcode));
-			
-			return;
-		}
+		DrakeScriptCore(DrakeScriptMapping &map) : _mapping(map), _trigger_data{}, _custom_opcode{}
+		{}
 		
 		void RegCustomOpcode(opcode_idx_t opcode, opcode_func_t func)
 		{

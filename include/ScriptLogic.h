@@ -11,7 +11,7 @@ namespace ScriptLogic
 	static constexpr uint32_t PSRAM_MALLOC_SIZE = SCRIPTS_COUNT * 512;
 
 	static constexpr uint32_t NOR_OFFSET = 8 * 1024 * 1024;
-	static constexpr uint16_t NOR_SECTOR_SIZE = 4 * 1024;
+	static constexpr uint16_t NOR_SECTOR_SIZE = SPICore::flash.NOR_SECTOR_SIZE;
 	
 	DrakeScriptMapping ScriptMapObj;
 	DrakeScriptCore ScriptObj(ScriptMapObj);
@@ -77,8 +77,8 @@ uint8_t *universal_buffer = nullptr;
 			memset(nor_buffer, 0x00, NOR_SECTOR_SIZE);
 			nor_read_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 			
-			//SPI:ReadBytes(nor_read_offset, NOR_SECTOR_SIZE, nor_buffer);
-
+			SPICore::flash.ReadBytes(nor_read_offset, NOR_SECTOR_SIZE, nor_buffer);
+			
 			if(nor_script_header->length > (NOR_SECTOR_SIZE - sizeof(nor_script_header_h)))
 			{
 				DEBUG_LOG_TOPIC("PSRAM", "Invalid script length! id:%d, len:%u\n", script_id, nor_script_header->length);
@@ -127,16 +127,16 @@ uint8_t *universal_buffer = nullptr;
 		uint32_t sector = nor_offset / NOR_SECTOR_SIZE;
 		uint32_t page = nor_offset / 256;
 		uint8_t page_count = (length + 255) / 256;
-		
-		//SPI::EraseSector(sector);
-		//SPI::WaitReady();
+
+		SPICore::flash.EraseSector(sector);
+		SPICore::flash.WaitReady();
 
 		for(uint8_t i = 0; i < page_count; ++i)
 		{
-			//SPI::WritePage(page + i, &data[i * 256]);
-			//SPI::WaitReady();
+			SPICore::flash.WritePage(page + i, &data[i * 256]);
+			SPICore::flash.WaitReady();
 		}
-
+		
 		return;
 	}
 	
@@ -149,8 +149,8 @@ uint8_t *universal_buffer = nullptr;
 		uint32_t nor_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 		uint32_t sector = nor_offset / NOR_SECTOR_SIZE;
 		
-		//SPI::EraseSector(sector);
-		//SPI::WaitReady();
+		SPICore::flash.EraseSector(sector);
+		SPICore::flash.WaitReady();
 		
 		return;
 	}
@@ -163,8 +163,8 @@ uint8_t *universal_buffer = nullptr;
 		uint32_t nor_read_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 		// Добавить проверку чтобы нельзя было читать вне границв скрипта и зоны скриптов, через указания неверного script_id
 		
-		//SPI:ReadBytes(nor_read_offset, sizeof(header), &header);
-
+		SPICore::flash.ReadBytes(nor_read_offset, sizeof(header), (uint8_t *)&header);
+		
 		return;
 	}
 
@@ -356,12 +356,9 @@ uint8_t *universal_buffer = nullptr;
 				if(data_len != sizeof(script_info_req_t)) break;
 				
 				auto req = (script_info_req_t *) data_ptr;
-
-				nor_script_header_h header = {};
-				uint32_t nor_read_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * req->script_id);
-				// Добавить проверку чтобы нельзя было читать вне границв скрипта и зоны скриптов, через указания неверного script_id
 				
-				//SPI:ReadBytes(nor_read_offset, sizeof(header), &header);
+				nor_script_header_h header = {};
+				GetScriptHeader(req->script_id, header);
 
 				script_info_resp_t resp = {};
 				resp.script_id = req->script_id;

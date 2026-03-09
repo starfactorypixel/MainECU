@@ -15,12 +15,9 @@
 #include <L3SubscriptionDB.h>
 #include <VirtualValue.h>
 
+#include "SPICore.h"
+
 #include "ScriptLogic.h"
-
-//#include <SPI.h>
-
-
-
 
 
 
@@ -196,6 +193,7 @@ void setup()
 	About::Setup();
 	Config::Setup();
 	Security::Setup();
+	SPICore::Setup();
 	ScriptLogic::Setup();
 
 	//SPI::Setup();
@@ -289,6 +287,7 @@ void loop()
 	About::Loop(current_time);
 	Config::Loop(current_time);
 	Security::Loop(current_time);
+	SPICore::Loop(current_time);
 	ScriptLogic::Loop(current_time);
 
 	//SPI::Loop(current_time);

@@ -18,11 +18,11 @@ static const uint8_t L3DevicePingCount = 3;
 // Бытовая маска типов L3 устройств.
 enum L3DevType_t : uint8_t
 {
-    L3_DEVTYPE_NONE = 0b00000000,           // Не люблю нули :|
-    L3_DEVTYPE_BLUETOOTH = 0b00000001,      // Устройства Bluetooth (Телефон, Планшет).
-    L3_DEVTYPE_DASHBOARD = 0b00000010,      // Приборная панель.
-    L3_DEVTYPE_COMPUTER = 0b00000100,       // Бортовой компьютер.
-    L3_DEVTYPE_ALL = 0b11111111             // Все устройства.
+	L3_DEVTYPE_NONE = 0x00,				// Не люблю нули :|
+	L3_DEVTYPE_BLUETOOTH = (1U << 0),	// Устройства Bluetooth (Телефон, Планшет).
+	L3_DEVTYPE_DASHBOARD = (1U << 1),	// Приборная панель.
+	L3_DEVTYPE_COMPUTER = (1U << 2),	// Бортовой компьютер.
+	L3_DEVTYPE_ALL = 0xFF				// Все устройства.
 };
 
 // Состояние L3 устройства.

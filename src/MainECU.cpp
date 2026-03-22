@@ -1,4 +1,4 @@
-#include "soc/rtc_wdt.h"
+//#include "soc/rtc_wdt.h"
 #include "esp_int_wdt.h"
 #include "esp_task_wdt.h"
 
@@ -11,6 +11,7 @@
 
 #include <StateDB.h>
 #include <L2Wrapper.h>
+#include "CANCore.h"
 #include <L3Wrapper.h>
 #include <L3SubscriptionDB.h>
 #include <VirtualValue.h>
@@ -32,7 +33,7 @@ void L2OnError(int8_t code);
 
 
 
-L3DriverBluetooth L3Driver_BT;  // Для соединения по BT.
+//L3DriverBluetooth L3Driver_BT;  // Для соединения по BT.
 L3DriverUART L3Driver_UART;     // Для соединения по UART (rs485) с бортовым компьютером.
 //L3DriverSerial driver_ss;     // Для соединения по Serial.
 //L3Wrapper L3(0, driver_ss);
@@ -162,7 +163,7 @@ void IRAM_ATTR onTimer()
     {
         case 0:
         {
-            L3Driver_BT.Tick( millis() );
+            //L3Driver_BT.Tick( millis() );
             timet_iter = 1;
             break;
         }
@@ -183,16 +184,40 @@ void IRAM_ATTR onTimer()
 }
 
 
-
+#include "esp_pm.h"
+#include "esp_clk.h"
 
 void setup()
 {
-    Serial.begin(500000);
+
+
+
+setCpuFrequencyMhz(240);
+esp_pm_config_esp32s3_t pm_config = {
+    .max_freq_mhz = 240,
+    .min_freq_mhz = 240,
+    .light_sleep_enable = false
+};
+esp_pm_configure(&pm_config);
+
+
+
+
+
+
+
+
+
+
+	Serial.begin(500000);
+	delay(2000);
     Serial.println("Start Main ECU");
+
 
 	About::Setup();
 	Config::Setup();
 	Security::Setup();
+	CANCore::Setup();
 	SPICore::Setup();
 	ScriptLogic::Setup();
 
@@ -231,7 +256,7 @@ void setup()
 	//SPI::Dev_Active(SPI::PIN_CS_CAN_RS);
 
     
-    L3.AddDevice(L3Driver_BT);
+    //L3.AddDevice(L3Driver_BT);
     L3.AddDevice(L3Driver_UART);
     L3.RegCallback(L3OnRX, L3OnError, L3OnReset);
     L3.Init();
@@ -247,8 +272,8 @@ void setup()
 
 
 	esp_task_wdt_delete(NULL);
-    rtc_wdt_protect_off();
-    rtc_wdt_disable();
+    //rtc_wdt_protect_off();
+    //rtc_wdt_disable();
 	disableCore0WDT();
 	disableCore1WDT();
 	disableLoopWDT();
@@ -287,6 +312,7 @@ void loop()
 	About::Loop(current_time);
 	Config::Loop(current_time);
 	Security::Loop(current_time);
+	CANCore::Loop(current_time);
 	SPICore::Loop(current_time);
 	ScriptLogic::Loop(current_time);
 
@@ -363,9 +389,9 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 	uint8_t *packet_ptr = request.GetPacketPtr();
 	uint8_t *data_ptr = request.GetDataPtr();
 	
-	//DEBUG_LOG_TOPIC("L3_OnRX", "Type: 0x%02X, Param: 0x%04X, Data(%d): ", request.Type(), request.Param(), request.GetDataLength());
-	//DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
-	//DEBUG_LOG_SIMPLE(";\n");
+	DEBUG_LOG_TOPIC("L3_OnRX", "Type: 0x%02X, Param: 0x%04X, Data(%d): ", request.Type(), request.Param(), request.GetDataLength());
+	DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
+	DEBUG_LOG_SIMPLE(";\n");
 	
 	// https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
     switch (request.Type())
@@ -683,9 +709,9 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
 	bool result = false;
 	
-	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
-	//DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
-	//DEBUG_LOG_SIMPLE(";\n");
+	DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
+	DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
+	DEBUG_LOG_SIMPLE(";\n");
 
 	//#warning Remove this after debug !!!1
 	//DB.SetObjType(request.id, 0x01);

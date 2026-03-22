@@ -59,7 +59,7 @@ namespace SPICore
 		{
 			.length = (length * 8U),
 			.tx_buffer = data,
-			.rx_buffer = nullptr,
+			//.rx_buffer = nullptr,
 		};
 		spi_device_transmit(spi, &transaction);
 	}
@@ -68,8 +68,7 @@ namespace SPICore
 	{
 		spi_transaction_t transaction = 
 		{
-			.length = (length * 8U),
-			.tx_buffer = nullptr,
+			.rxlength = (length * 8U),
 			.rx_buffer = data,
 		};
 		spi_device_transmit(spi, &transaction);
@@ -77,6 +76,7 @@ namespace SPICore
 	
 	void SPI_OnTxRx(uint8_t *tx_data, uint8_t *rx_data, uint16_t length)
 	{
+		/*
 		spi_transaction_t transaction = 
 		{
 			.length = (length * 8U),
@@ -84,6 +84,7 @@ namespace SPICore
 			.rx_buffer = rx_data,
 		};
 		spi_device_transmit(spi, &transaction);
+		*/
 	}
 	
 	inline void Setup()
@@ -94,10 +95,13 @@ namespace SPICore
 		uint8_t did[3];
 		flash.ReadDevID(did);
 		DEBUG_LOG_ARRAY_HEX("NOR_dID", did, sizeof(did));
+		DEBUG_LOG_NEW_LINE();
 
 		uint8_t uid[8];
 		flash.ReadUniqueID(uid);
 		DEBUG_LOG_ARRAY_HEX("NOR_uID", uid, sizeof(uid));
+		DEBUG_LOG_NEW_LINE();
+
 
 		return;
 	}

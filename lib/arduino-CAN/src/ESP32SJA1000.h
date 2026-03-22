@@ -7,10 +7,30 @@
 #include <Arduino.h>					// yield();
 #include <functional>
 #include "esp_chip_info.h"
-#include "esp_intr_alloc.h"
-#include "soc/dport_reg.h"
+//#include "esp_intr_alloc.h"
+//#include "soc/dport_reg.h"
 #include "driver/gpio.h"
-#include "string.h"
+//#include "string.h"
+
+// ESP32-S3 Check for both ESP-IDF and Arduino environments
+#if defined(ESP_PLATFORM) && (__has_include("esp_intr_alloc.h")) 
+	#include "esp_intr_alloc.h"
+	#include "rom/gpio.h"
+	#include "soc/interrupts.h"
+	#include "soc/system_reg.h"
+	#define ARDUINO_ESP32S3
+	#define CAN_RX_IDX TWAI_RX_IDX
+	#define CAN_TX_IDX TWAI_TX_IDX
+	#define ETS_CAN_INTR_SOURCE ETS_TWAI_INTR_SOURCE
+	#define DR_REG_CAN_BASE DR_REG_TWAI_BASE
+
+#elif defined(ESP_PLATFORM) && (__has_include("esp_intr.h"))
+	#include "esp_intr.h"
+	#include "soc/dport_reg.h"
+
+#else
+	#error "Unsupported ESP32 variant or missing header files"
+#endif
 
 class ESP32SJA1000Class
 {
@@ -37,7 +57,7 @@ class ESP32SJA1000Class
 			_rx{}, _tx{},
 			_onReceive(nullptr),
 			_loopback(false),
-			_intrHandle(NULL)
+			_intrHandle(nullptr)
 		{}
 		
 		void setCallback(on_receive_t callback);
@@ -65,15 +85,15 @@ class ESP32SJA1000Class
 		
 	private:
 		
-		uint8_t parsePacket();
+		bool parsePacket();
 		
 		static void onInterrupt(void *arg);
 		void handleInterrupt();
 		
-		uint8_t readRegister(uint8_t address);
-		void modifyRegister(uint8_t address, uint8_t mask, uint8_t value);
-		void writeRegister(uint8_t address, uint8_t value);
-		bool writeReadRegister(uint8_t address, uint8_t value);
+		uint32_t readRegister(uint32_t address);
+		void modifyRegister(uint32_t address, uint32_t mask, uint32_t value);
+		void writeRegister(uint32_t address, uint32_t value);
+		bool writeReadRegister(uint32_t address, uint32_t value);
 		
 		
 		gpio_num_t _rxPin;

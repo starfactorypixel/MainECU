@@ -5,30 +5,24 @@
 
 #include "ESP32SJA1000.h"
 
-#define REG_BASE                   0x3FF6B000
-
-#define REG_MOD                    0x00
-#define REG_CMR                    0x01
-#define REG_SR                     0x02
-#define REG_IR                     0x03
-#define REG_IER                    0x04
-
-#define REG_BTR0                   0x06
-#define REG_BTR1                   0x07
-#define REG_OCR                    0x08
-
-#define REG_ALC                    0x0B
-#define REG_ECC                    0x0C
-#define REG_EWLR                   0x0D
-#define REG_RXERR                  0x0E
-#define REG_TXERR                  0x0F
-#define REG_SFF                    0x10
-#define REG_EFF                    0x10
-#define REG_ACRn(n)                (0x10 + n)
-#define REG_AMRn(n)                (0x14 + n)
-
-#define REG_CDR                    0x1F
-
+#define REG_MOD			0x00			// mode_reg
+#define REG_CMR			0x01			// command_reg
+#define REG_SR			0x02			// status_reg
+#define REG_IR			0x03			// interrupt_reg
+#define REG_IER			0x04			// interrupt_enable_reg
+#define REG_BTR0		0x06			// bus_timing_0_reg
+#define REG_BTR1		0x07			// bus_timing_1_reg
+#define REG_ALC			0x0B			// arbitration_lost_captue_reg
+#define REG_ECC			0x0C			// error_code_capture_reg
+#define REG_EWLR		0x0D			// error_warning_limit_reg
+#define REG_RXERR		0x0E			// rx_error_counter_reg
+#define REG_TXERR		0x0F			// tx_error_counter_reg
+#define REG_SFF			0x10			// tx_rx_buffer[12]
+#define REG_EFF			0x10			// tx_rx_buffer[12]
+#define REG_ACRn(n)		(0x10 + n)	// acceptance_filter > acr[4]
+#define REG_AMRn(n)		(0x14 + n)	// acceptance_filter > amr[4]
+#define REG_RXMC		0x1D			// rx_message_counter_reg
+#define REG_CDR			0x1F			// clock_divider_reg
 
 
 void ESP32SJA1000Class::setCallback(on_receive_t callback)
@@ -62,21 +56,32 @@ bool ESP32SJA1000Class::begin(uint32_t baudRate)
 	_tx.id = NO_CAN_ID;
 	
 	_loopback = false;
-	
+
+#ifdef ARDUINO_ESP32S3
+	CLEAR_PERI_REG_MASK(SYSTEM_PERIP_RST_EN0_REG, SYSTEM_TWAI_RST);
+	SET_PERI_REG_MASK(SYSTEM_PERIP_CLK_EN0_REG, SYSTEM_TWAI_CLK_EN);
+#else
 	DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_CAN_RST);
 	DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_CAN_CLK_EN);
+#endif
 	
+	// Входим в режим reset
+	modifyRegister(REG_MOD, 0x01, 0x01);
+
 	gpio_set_direction(_rxPin, GPIO_MODE_INPUT);
 	gpio_matrix_in(_rxPin, CAN_RX_IDX, 0);
 	gpio_pad_select_gpio(_rxPin);
-	
+
 	gpio_set_direction(_txPin, GPIO_MODE_OUTPUT);
 	gpio_matrix_out(_txPin, CAN_TX_IDX, 0, 0);
 	gpio_pad_select_gpio(_txPin);
-	
-	modifyRegister(REG_CDR, 0x80, 0x80);	// pelican mode
+
+#ifndef ARDUINO_ESP32S3
+
+	modifyRegister(REG_CDR, 0x80, 0x80);	// Pelican mode
 	modifyRegister(REG_BTR0, 0xC0, 0x40);	// SJW = 1
 	modifyRegister(REG_BTR1, 0x70, 0x10);	// TSEG2 = 1
+	modifyRegister(REG_BTR1, 0x80, 0x80);	// SAM = 1
 	
 	switch(baudRate)
 	{
@@ -132,11 +137,21 @@ bool ESP32SJA1000Class::begin(uint32_t baudRate)
 		// From >= rev2 used as "divide BRP by 2"
 		modifyRegister(REG_IER, 0x10, 0);
 	}
+#endif
+
+#ifdef ARDUINO_ESP32S3
 	
-	modifyRegister(REG_BTR1, 0x80, 0x80);	// SAM = 1
+	// Для 500000
+	modifyRegister(REG_BTR0, 0xDFFF, 0xC003);
+	modifyRegister(REG_BTR1, 0x00FF, 0x5C);
+	modifyRegister(REG_CDR, 0x1FF, 0x0100);
+
+#endif
+	
+	// Включаем все прерывания
 	modifyRegister(REG_IER, 0xEF, 0xEF);
-	
-	// set filter to allow anything
+
+	// Разрешаем любой пакет в фильтрах
 	writeRegister(REG_ACRn(0), 0x00);
 	writeRegister(REG_ACRn(1), 0x00);
 	writeRegister(REG_ACRn(2), 0x00);
@@ -145,20 +160,15 @@ bool ESP32SJA1000Class::begin(uint32_t baudRate)
 	writeRegister(REG_AMRn(1), 0xFF);
 	writeRegister(REG_AMRn(2), 0xFF);
 	writeRegister(REG_AMRn(3), 0xFF);
-	
-	modifyRegister(REG_OCR, 0x03, 0x02);	// normal output mode
-	
-	// reset error counters
+
+	// Сброс ошибок и фдагов прерывания
 	writeRegister(REG_TXERR, 0x00);
 	writeRegister(REG_RXERR, 0x00);
-	
-	// clear errors and interrupts
 	readRegister(REG_ECC);
 	readRegister(REG_IR);
-	
-	// normal mode
-	modifyRegister(REG_MOD, 0x08, 0x08);
-	modifyRegister(REG_MOD, 0x17, 0x00);
+
+	// Входим в режим Normal + Acceptance Filter Mode
+	modifyRegister(REG_MOD, 0x0F, 0x08);
 	
 	return true;
 }
@@ -168,17 +178,19 @@ void ESP32SJA1000Class::end()
 	if(_intrHandle)
 	{
 		esp_intr_free(_intrHandle);
-		_intrHandle = NULL;
+		_intrHandle = nullptr;
 	}
-	
+
+#ifdef ARDUINO_ESP32S3
+	SET_PERI_REG_MASK(SYSTEM_PERIP_RST_EN0_REG, SYSTEM_TWAI_RST);
+	CLEAR_PERI_REG_MASK(SYSTEM_PERIP_CLK_EN0_REG, SYSTEM_TWAI_CLK_EN);
+#else
 	DPORT_SET_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_CAN_RST);
 	DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_CAN_CLK_EN);
+#endif
 	
 	return;
 }
-
-
-
 
 
 bool ESP32SJA1000Class::beginPacket(uint16_t id, bool rtr)
@@ -292,9 +304,9 @@ bool ESP32SJA1000Class::SendPacket(packet_new_t &packet)
 
 
 
-uint8_t ESP32SJA1000Class::parsePacket()
+bool ESP32SJA1000Class::parsePacket()
 {
-	if((readRegister(REG_SR) & 0x01) != 0x01) return 0;
+	if((readRegister(REG_SR) & 0x01) != 0x01) return false;
 	
 	_rx.extended = (readRegister(REG_SFF) & 0x80) ? true : false;
 	_rx.rtr = (readRegister(REG_SFF) & 0x40) ? true : false;
@@ -325,7 +337,7 @@ uint8_t ESP32SJA1000Class::parsePacket()
 	// release RX buffer
 	modifyRegister(REG_CMR, 0x04, 0x04);
 	
-	return _rx.dlc;
+	return true;
 }
 
 
@@ -417,9 +429,6 @@ void ESP32SJA1000Class::cmd_wakeup()
 }
 
 
-
-
-
 void ESP32SJA1000Class::onInterrupt(void *arg)
 {
 	((ESP32SJA1000Class *)arg)->handleInterrupt();
@@ -428,41 +437,40 @@ void ESP32SJA1000Class::onInterrupt(void *arg)
 void ESP32SJA1000Class::handleInterrupt()
 {
 	if(readRegister(REG_IR) & 0x01 != 0x01) return;
-	
-	parsePacket();
-	
-	packet_new_t rx_cold = _rx;
-	_onReceive(rx_cold);
+
+	if( parsePacket() )
+	{
+		//packet_new_t rx_cold = _rx;
+		_onReceive(_rx);
+		memset(&_rx, 0x00, sizeof(_rx));
+	}
 	
 	return;
 }
 
 
-
-
-
-uint8_t ESP32SJA1000Class::readRegister(uint8_t address)
+uint32_t ESP32SJA1000Class::readRegister(uint32_t address)
 {
-	volatile uint32_t *reg = (volatile uint32_t *)(REG_BASE + address * 4);
+	volatile uint32_t *reg = (volatile uint32_t *)(DR_REG_CAN_BASE + (address * 4));
 	
 	return *reg;
 }
 
-void ESP32SJA1000Class::modifyRegister(uint8_t address, uint8_t mask, uint8_t value)
+void ESP32SJA1000Class::modifyRegister(uint32_t address, uint32_t mask, uint32_t value)
 {
-	volatile uint32_t *reg = (volatile uint32_t *)(REG_BASE + address * 4);
+	volatile uint32_t *reg = (volatile uint32_t *)(DR_REG_CAN_BASE + (address * 4));
 	
 	*reg = (*reg & ~mask) | value;
 }
 
-void ESP32SJA1000Class::writeRegister(uint8_t address, uint8_t value)
+void ESP32SJA1000Class::writeRegister(uint32_t address, uint32_t value)
 {
-	volatile uint32_t *reg = (volatile uint32_t *)(REG_BASE + address * 4);
+	volatile uint32_t *reg = (volatile uint32_t *)(DR_REG_CAN_BASE + (address * 4));
 	
 	*reg = value;
 }
 
-bool ESP32SJA1000Class::writeReadRegister(uint8_t address, uint8_t value)
+bool ESP32SJA1000Class::writeReadRegister(uint32_t address, uint32_t value)
 {
 	writeRegister(address, value);
 	if(readRegister(address) != value) return false;

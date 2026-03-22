@@ -78,6 +78,11 @@ uint8_t *universal_buffer = nullptr;
 			nor_read_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 			
 			SPICore::flash.ReadBytes(nor_read_offset, NOR_SECTOR_SIZE, nor_buffer);
+
+			if(nor_script_header->length == 0xFFFF)
+			{
+				continue;
+			}
 			
 			if(nor_script_header->length > (NOR_SECTOR_SIZE - sizeof(nor_script_header_h)))
 			{

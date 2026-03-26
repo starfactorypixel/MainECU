@@ -77,7 +77,7 @@ uint8_t *universal_buffer = nullptr;
 			memset(nor_buffer, 0x00, NOR_SECTOR_SIZE);
 			nor_read_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 			
-			SPICore::flash.ReadBytes(nor_read_offset, NOR_SECTOR_SIZE, nor_buffer);
+			SPICore::flash.ReadBytes(nor_read_offset, nor_buffer, NOR_SECTOR_SIZE);
 
 			if(nor_script_header->length == 0xFFFF)
 			{
@@ -168,7 +168,7 @@ uint8_t *universal_buffer = nullptr;
 		uint32_t nor_read_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 		// Добавить проверку чтобы нельзя было читать вне границв скрипта и зоны скриптов, через указания неверного script_id
 		
-		SPICore::flash.ReadBytes(nor_read_offset, sizeof(header), (uint8_t *)&header);
+		SPICore::flash.ReadBytes(nor_read_offset, (uint8_t *)&header, sizeof(header));
 		
 		return;
 	}

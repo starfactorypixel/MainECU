@@ -5,6 +5,8 @@
 
 #include "ESP32SJA1000.h"
 
+// esp32\include\soc\esp32\include\soc\twai_struct.h
+// esp32s3\include\soc\esp32s3\include\soc\twai_struct.h
 #define REG_MOD			0x00			// mode_reg
 #define REG_CMR			0x01			// command_reg
 #define REG_SR			0x02			// status_reg

@@ -3,6 +3,7 @@
 #include <string.h>
 #include "esp_crc.h"
 #include <DrakeScriptCore.hpp>
+#include <DrakeScriptMappingESP32PSRAM.hpp>
 #include "ScriptLogicCustom.h"
 
 namespace ScriptLogic
@@ -13,15 +14,13 @@ namespace ScriptLogic
 	static constexpr uint32_t NOR_OFFSET = 8 * 1024 * 1024;
 	static constexpr uint16_t NOR_SECTOR_SIZE = SPICore::flash.NOR_SECTOR_SIZE;
 	
-	DrakeScriptMapping ScriptMapObj;
+	DrakeScriptMappingESP32PSRAM<PSRAM_MALLOC_SIZE> ScriptMapObj;
 	DrakeScriptCore ScriptObj(ScriptMapObj);
 
 
 
-//uint8_t *script_data = (uint8_t *)heap_caps_malloc(2048*512, MALLOC_CAP_SPIRAM);
-uint8_t *script_data = nullptr;
 
-uint8_t *universal_buffer = nullptr;
+	uint8_t *universal_buffer = nullptr;
 
 /*
 
@@ -66,11 +65,9 @@ uint8_t *universal_buffer = nullptr;
 
 	void LoadFromSPIFlash()
 	{
-		uint8_t *nor_buffer = (uint8_t *)heap_caps_malloc(NOR_SECTOR_SIZE, MALLOC_CAP_INTERNAL);								/// заменить на universal_buffer
-		uint32_t nor_read_offset;
+		uint8_t *nor_buffer = universal_buffer;
+		uint32_t nor_read_offset = 0;
 		nor_script_header_h *nor_script_header = (nor_script_header_h *) nor_buffer;
-
-		uint32_t psram_write_offset = 0;
 
 		for(uint16_t script_id = 0; script_id < SCRIPTS_COUNT; ++script_id)
 		{
@@ -102,20 +99,13 @@ uint8_t *universal_buffer = nullptr;
 				continue;
 			}
 			
-			if(psram_write_offset + nor_script_header->length <= PSRAM_MALLOC_SIZE)
+			bool add_result = ScriptMapObj.AddScript(script_id, &nor_buffer[sizeof(nor_script_header_h)], nor_script_header->length);
+			if(add_result == false)
 			{
 				DEBUG_LOG_TOPIC("PSRAM", "Mo more PSRAM memory! id:%d\n", script_id);
 				break;
 			}
-			
-			memcpy(&script_data[psram_write_offset], &nor_buffer[sizeof(nor_script_header_h)], nor_script_header->length);
-			
-			ScriptMapObj.AddScriptMap(script_id, psram_write_offset, nor_script_header->length);
-			
-			psram_write_offset += nor_script_header->length;
 		}
-		
-		heap_caps_free(nor_buffer);
 		
 		return;
 	}
@@ -472,16 +462,12 @@ uint8_t *universal_buffer = nullptr;
 		
 		universal_buffer = (uint8_t *)heap_caps_malloc(NOR_SECTOR_SIZE, MALLOC_CAP_INTERNAL);
 
-
-
-		script_data = (uint8_t *)heap_caps_malloc(PSRAM_MALLOC_SIZE, MALLOC_CAP_SPIRAM);
-		if(!script_data)
+		if(!ScriptMapObj.Init())
 		{
 			DEBUG_LOG_TOPIC("PSRAM", "PSRAM alloc failed\n");
 			return;
 		}
 		
-		ScriptMapObj.SetScriptsArray(script_data, PSRAM_MALLOC_SIZE);
 		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA0, TestOpcode);
 		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA1, TestOpcode);
 		LoadFromSPIFlash();

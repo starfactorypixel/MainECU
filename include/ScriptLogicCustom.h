@@ -46,18 +46,18 @@ namespace ScriptLogic
 				CanSendRegVal11_t *obj = (CanSendRegVal11_t *) bytes;
 				
 				uint8_t data[8] = {0x00};
-				uint8_t offset = 0;
+				uint8_t data_offset = 0;
 				
-				data[offset++] = obj->fid;
+				data[data_offset++] = obj->fid;
 				
 				if(obj->reg1 != 0xFF)
-					offset += write_i32_fast(&data[offset], registers.RegisterGet(obj->reg1), obj->type);
+					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg1), obj->type);
 				
 				if(obj->reg2 != 0xFF)
-					offset += write_i32_fast(&data[offset], registers.RegisterGet(obj->reg2), obj->type);
+					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg2), obj->type);
 				
 				if(obj->reg3 != 0xFF)
-					offset += write_i32_fast(&data[offset], registers.RegisterGet(obj->reg3), obj->type);
+					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg3), obj->type);
 				
 				L2.Send(obj->can_id, data, obj->length);
 				

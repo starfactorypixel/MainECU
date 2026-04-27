@@ -377,21 +377,21 @@ namespace ScriptLogic
 	{
 		if(request.GetDataLength() == 0) return false;
 		
-		uint8_t *data_ptr = request.GetDataPtr();
-		uint8_t data_len = request.GetDataLength();
-		uint8_t cmd = data_ptr[0];
+		uint8_t *rx_data_ptr = request.GetDataPtr();
+		uint8_t rx_data_len = request.GetDataLength();
+		uint8_t rx_cmd = rx_data_ptr[0];
 
 		bool result = false;
 		
-		switch(cmd)
+		switch(rx_cmd)
 		{
 			// Запрос и ответ информации о скрипте в NOR памяти.
 			// Стоит добавить проверку состояния в PSRAM и флаг en.
 			case 0x01:
 			{
-				if(data_len != sizeof(script_info_req_t)) break;
+				if(rx_data_len != sizeof(script_info_req_t)) break;
 				
-				auto req = (script_info_req_t *) data_ptr;
+				auto req = (script_info_req_t *) rx_data_ptr;
 				
 				nor_script_header_h header = {};
 				GetScriptHeader(req->script_id, header);
@@ -409,9 +409,9 @@ namespace ScriptLogic
 			// Запрос и ответ удаления скрипта
 			case 0x02:
 			{
-				if(data_len != sizeof(script_delete_req_t)) break;
+				if(rx_data_len != sizeof(script_delete_req_t)) break;
 				
-				auto req = (script_delete_req_t *) data_ptr;
+				auto req = (script_delete_req_t *) rx_data_ptr;
 				
 				DeleteFromSPIFlash(req->script_id);
 
@@ -428,9 +428,9 @@ namespace ScriptLogic
 			// Запрос и ответ на начало записи скрипта
 			case 0x03:
 			{
-				if(data_len != sizeof(script_upload_init_req_t)) break;
+				if(rx_data_len != sizeof(script_upload_init_req_t)) break;
 				
-				auto req = (script_upload_init_req_t *) data_ptr;
+				auto req = (script_upload_init_req_t *) rx_data_ptr;
 				
 				memset(universal_buffer, 0xFF, NOR_SECTOR_SIZE);
 				
@@ -454,10 +454,10 @@ namespace ScriptLogic
 			// Приём тела скрипта и ответ подтвержением
 			case 0x04:
 			{
-				if(data_len > sizeof(script_upload_proc_req_t)) break;
+				if(rx_data_len > sizeof(script_upload_proc_req_t)) break;
 				if(transfer_data.type != TRANSFER_UPLOAD) break;
 				
-				auto req = (script_upload_proc_req_t *) data_ptr;
+				auto req = (script_upload_proc_req_t *) rx_data_ptr;
 				
 				if(transfer_data.id != req->script_id) break;
 				
@@ -495,9 +495,9 @@ namespace ScriptLogic
 			// Запрос и ответ на начало чтение скрипта
 			case 0x06:
 			{
-				if(data_len != sizeof(script_download_init_req_t)) break;
+				if(rx_data_len != sizeof(script_download_init_req_t)) break;
 				
-				auto req = (script_download_init_req_t *) data_ptr;
+				auto req = (script_download_init_req_t *) rx_data_ptr;
 
 				nor_script_header_h header = {};
 				GetScriptHeader(req->script_id, header);
@@ -523,10 +523,10 @@ namespace ScriptLogic
 			// Отправка тела скрипта
 			case 0x07:
 			{
-				if(data_len > sizeof(script_download_proc_req_t)) break;
+				if(rx_data_len > sizeof(script_download_proc_req_t)) break;
 				if(transfer_data.type != TRANSFER_DOWNLOAD) break;
 				
-				auto req = (script_download_proc_req_t *) data_ptr;
+				auto req = (script_download_proc_req_t *) rx_data_ptr;
 				
 				if(transfer_data.id != req->script_id) break;
 

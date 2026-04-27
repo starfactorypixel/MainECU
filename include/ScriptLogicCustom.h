@@ -32,7 +32,7 @@ namespace ScriptLogic
 		
 		switch(opcode)
 		{
-			case 0xA0:
+			case 0x25:
 			{
 				CanSendRaw11_t *obj = (CanSendRaw11_t *) bytes;
 
@@ -41,7 +41,7 @@ namespace ScriptLogic
 				offset += sizeof(*obj);
 				break;
 			}
-			case 0xA1:
+			case 0x26:
 			{
 				CanSendRegVal11_t *obj = (CanSendRegVal11_t *) bytes;
 				

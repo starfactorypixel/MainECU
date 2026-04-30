@@ -110,20 +110,21 @@ namespace ScriptLogic
 		return;
 	}
 	
-	
-	// Массив data должен быть кратен 256 байтам и заполнен 0xFF по умолчанию.
+	// data со сдвигом sizeof(nor_script_header_h), length без учёта sizeof(nor_script_header_h)
+	// Массив data должен быть заполнен 0xFF по умолчанию.
 	void SaveToSPIFlash(uint16_t script_id, uint8_t *data, uint16_t length)
 	{
 		if(script_id >= SCRIPTS_COUNT) return;
-		if(length > NOR_SECTOR_SIZE) return;
-
-		nor_script_header_h header = {};
-		header.flag1 = 0x55;
-		header.length = length;
-		memcpy(&data[0], &header, sizeof(header));
-
+		if(length + sizeof(nor_script_header_h) > NOR_SECTOR_SIZE) return;
+		//if(length < sizeof(nor_script_header_h)) return;
+		
+		nor_script_header_h *header = (nor_script_header_h *) &data[0];
+		header->flag1 = 0x55;
+		header->flag2 = 0x00;
+		header->length = length;
+		header->crc32 = calc_crc_inplace(data);
 		length += sizeof(nor_script_header_h);
-
+		
 		uint32_t nor_offset = NOR_OFFSET + (NOR_SECTOR_SIZE * script_id);
 		uint32_t sector = nor_offset / NOR_SECTOR_SIZE;
 		uint32_t page = nor_offset / 256;
@@ -560,14 +561,13 @@ namespace ScriptLogic
 	uint32_t calc_crc_inplace(uint8_t *buff)
 	{
 		nor_script_header_h *hdr = (nor_script_header_h *) buff;
-		uint32_t saved_crc = hdr->crc32;
+		
+		uint32_t old_crc = hdr->crc32;
 		hdr->crc32 = 0x00000000;
+		uint32_t new_crc = esp_crc32_le(0xFFFFFFFF, buff, (sizeof(nor_script_header_h) + hdr->length))/* ^ 0xFFFFFFFF*/;
+		hdr->crc32 = old_crc;
 		
-		uint32_t crc = esp_crc32_le(0xFFFFFFFF, buff, sizeof(nor_script_header_h) + hdr->length) ^ 0xFFFFFFFF;
-		
-		hdr->crc32 = saved_crc;
-		
-		return crc;
+		return new_crc;
 	}
 	
 	
@@ -582,8 +582,8 @@ namespace ScriptLogic
 			return;
 		}
 		
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA0, TestOpcode);
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA1, TestOpcode);
+		ScriptObj.RegCustomOpcode((opcode_idx_t)0x25, TestOpcode);
+		ScriptObj.RegCustomOpcode((opcode_idx_t)0x26, TestOpcode);
 		LoadFromSPIFlash();
 		
 		return;

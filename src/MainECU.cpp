@@ -327,7 +327,7 @@ void loop()
 	{
 		wqeqqwe = millis();
 		DEBUG_LOG_TOPIC("SUB_LIST", "");
-		SubsDB.Dump(L3_DEVTYPE_BLUETOOTH, [](uint16_t id)
+		SubsDB.Dump(L3_DEVTYPE_COMPUTER, [](uint16_t id)
 		{
 			DEBUG_LOG_SIMPLE("0x%04x, ", id);
 		});

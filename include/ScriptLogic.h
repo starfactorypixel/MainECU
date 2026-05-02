@@ -69,6 +69,8 @@ namespace ScriptLogic
 		uint32_t nor_read_offset = 0;
 		nor_script_header_h *nor_script_header = (nor_script_header_h *) nor_buffer;
 
+		ScriptMapObj.ReInit();
+
 		for(uint16_t script_id = 0; script_id < SCRIPTS_COUNT; ++script_id)
 		{
 			memset(nor_buffer, 0x00, NOR_SECTOR_SIZE);
@@ -316,14 +318,14 @@ namespace ScriptLogic
 
 
 	// Входящий запрос на перезагрузку всех скриптов
-	struct __attribute__((packed)) script_apply_req_t
+	struct __attribute__((packed)) script_reload_req_t
 	{
 		uint8_t cmd = 0x08;
 	};
 	// Исходящий ответ на перезагрузку всех скриптов
-	struct __attribute__((packed)) script_apply_resp_t
+	struct __attribute__((packed)) script_reload_resp_t
 	{
-		uint8_t cmd = 0x09;
+		uint8_t cmd = 0x88;
 		int8_t state;
 	};
 
@@ -546,6 +548,24 @@ namespace ScriptLogic
 				result = true;
 				break;
 			}
+			
+			// Запрос и ответ на перезагрузку всех скриптов
+			case 0x08:
+			{
+				if(rx_data_len > sizeof(script_reload_req_t)) break;
+				
+				auto req = (script_reload_req_t *) rx_data_ptr;
+				
+				LoadFromSPIFlash();
+				
+				script_reload_resp_t resp = {};
+				resp.state = 1;
+				response.Type( request.Type() );
+				response.PutData((uint8_t *)&resp, sizeof(resp));
+				
+				result = true;
+				break;
+			}
 		}
 		
 		return result;
@@ -564,7 +584,7 @@ namespace ScriptLogic
 		
 		uint32_t old_crc = hdr->crc32;
 		hdr->crc32 = 0x00000000;
-		uint32_t new_crc = esp_crc32_le(0xFFFFFFFF, buff, (sizeof(nor_script_header_h) + hdr->length))/* ^ 0xFFFFFFFF*/;
+		uint32_t new_crc = esp_crc32_le(0, buff, (sizeof(nor_script_header_h) + hdr->length))/* ^ 0xFFFFFFFF*/;
 		hdr->crc32 = old_crc;
 		
 		return new_crc;

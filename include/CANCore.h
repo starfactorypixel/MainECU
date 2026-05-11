@@ -10,10 +10,8 @@ namespace CANCore
 	inline void Setup()
 	{
 		rs.Init();
-
-
-		rs.Write(DrakePin::Low);
 		
+		rs.Off();
 		
 		return;
 	}

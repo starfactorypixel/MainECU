@@ -36,7 +36,7 @@ namespace Security
 		bool result = false;
 		
 		// Авторизация по SHA1 со случайным ключём 16 байт.
-		if(packet->method = 0x01)
+		if(packet->method == 0x01)
 		{
 			const uint8_t random_length = 16;
 			const uint8_t local_sn_length = sizeof(Config::obj.security.serial);

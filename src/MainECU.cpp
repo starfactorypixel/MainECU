@@ -5,9 +5,10 @@
 #include <Arduino.h>
 
 #include <LoggerLibrary.h>
-#include <About.h>
-#include <Config.h>
-#include <Security.h>
+#include "About.h"
+#include "Leds.h"
+#include "Config.h"
+#include "Security.h"
 
 #include <StateDB.h>
 #include <L2Wrapper.h>
@@ -17,7 +18,7 @@
 #include <VirtualValue.h>
 
 #include "SPICore.h"
-
+#include "Analog.h"
 #include "ScriptLogic.h"
 
 
@@ -215,10 +216,12 @@ esp_pm_configure(&pm_config);
 
 
 	About::Setup();
+	Leds::Setup();
 	Config::Setup();
 	Security::Setup();
 	CANCore::Setup();
 	SPICore::Setup();
+	Analog::Setup();
 	ScriptLogic::Setup();
 
 	//SPI::Setup();
@@ -310,10 +313,12 @@ void loop()
     current_time = millis();
 
 	About::Loop(current_time);
+	Leds::Loop(current_time);
 	Config::Loop(current_time);
 	Security::Loop(current_time);
 	CANCore::Loop(current_time);
 	SPICore::Loop(current_time);
+	Analog::Loop(current_time);
 	ScriptLogic::Loop(current_time);
 
 	//SPI::Loop(current_time);

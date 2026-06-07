@@ -15,7 +15,7 @@
 #include "CANCore.h"
 #include <L3Wrapper.h>
 #include <L3SubscriptionDB.h>
-#include <VirtualValue.h>
+#include <L3BlockInfoDB.hpp>
 
 #include "SPICore.h"
 #include "Analog.h"
@@ -40,16 +40,17 @@ L3DriverUART L3Driver_UART;     // Для соединения по UART (rs485)
 //L3Wrapper L3(0, driver_ss);
 L3Wrapper L3;
 
+void L3OnConnect(L3DevType_t dev, int8_t code);
 bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
 void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
 void L3OnReset(L3DevType_t dev);
 
+void BlockLostCallback(uint8_t *data, uint8_t length);
+void BlockUpdateCallback(uint8_t *data, uint8_t length);
+
 StateDB DB;
 L3SubscriptionDB SubsDB;
-
-
-VirtualValue VV;
-
+L3BlockInfoDB BlockInfoDB;
 
 #if defined(USE_EMULATOR)
 #include <Emulator.h>
@@ -261,7 +262,7 @@ esp_pm_configure(&pm_config);
     
     //L3.AddDevice(L3Driver_BT);
     L3.AddDevice(L3Driver_UART);
-    L3.RegCallback(L3OnRX, L3OnError, L3OnReset);
+    L3.RegCallback(L3OnConnect, L3OnRX, L3OnError, L3OnReset);
     L3.Init();
 
 
@@ -287,20 +288,20 @@ esp_pm_configure(&pm_config);
     timerAttachInterrupt(My_timer, &onTimer, true);
     timerAlarmWrite(My_timer, 5000, true);
     timerAlarmEnable(My_timer);
-	
-	
-	VV.RegHandler(1000, [](VirtualValue::db_t obj)
-    {
-        static int32_t old_value = 0;
-        static uint32_t old_time = 0;
-
-        uint8_t delta_speed = abs( (obj.new_value - old_value) );
-        float tmp = (delta_speed / 3.6) * (obj.new_time - old_time);
-        obj.value = llrintf(tmp);
 
 
 
-    });
+
+
+
+
+	BlockInfoDB.SetLostCallback(BlockLostCallback);
+	BlockInfoDB.SetUpdateCallback(BlockUpdateCallback);
+
+
+
+
+
     
     return;
 }
@@ -354,7 +355,15 @@ void loop()
 			//DEBUG_LOG_SIMPLE(" done;\n");
 			subs &= ~bit;
 		}
+
+		// Формируем список устройств и их парметров
+		if((id & 0x000F) < 4 && obj.data[0] >= 0x61 && obj.data[0] <= 0x63 && obj.length == 8)
+		{
+			BlockInfoDB.PutAuto(id, obj.data, obj.length, millis());
+		}
 	});
+
+	BlockInfoDB.Processing(current_time);
 
 
 
@@ -384,7 +393,19 @@ void loop()
 }
 
 
+// Подключение устройства по протоколу L3.
+void L3OnConnect(L3DevType_t dev, int8_t code)
+{
+	if(code == 2)
+	{
+		BlockInfoDB.GetAllIter([&](uint8_t *data, uint8_t length)
+		{
+			L3.Send(dev, L3_REQTYPE_NONE05, 1, data, length);
+		});
+	}
 
+	return;
+}
 
 // Приём пакета по протоколу L3. Реализовано.
 bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
@@ -714,9 +735,9 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
 	bool result = false;
 	
-	DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
-	DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
-	DEBUG_LOG_SIMPLE(";\n");
+	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
+	//DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
+	//DEBUG_LOG_SIMPLE(";\n");
 
 	//#warning Remove this after debug !!!1
 	//DB.SetObjType(request.id, 0x01);
@@ -787,5 +808,19 @@ void L2OnError(int8_t code)
 {
 	DEBUG_LOG_TOPIC("L2_OnEr", "code: %d;\n", code);
 	
+	return;
+}
+
+void BlockLostCallback(uint8_t *data, uint8_t length)
+{
+	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 2, data, length);
+
+	return;
+}
+
+void BlockUpdateCallback(uint8_t *data, uint8_t length)
+{
+	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 1, data, length);
+
 	return;
 }

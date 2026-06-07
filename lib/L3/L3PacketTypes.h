@@ -73,23 +73,31 @@ namespace L3PacketTypes
 
 
 
-
-
 	// Пакет информации о блоке.
-	struct dev_info_t
+	struct block_info_t
 	{
-		uint8_t funcID = 0x0F;
+		uint8_t funcID;
 		uint16_t baseID;			// Базовый ID блока
-		uint8_t type;				// Тип платы, 5 бит
+		uint8_t hw_type;			// Тип платы, 5 бит
 		uint8_t hw_ver;				// Версия платы, 3 бита
 		uint8_t sw_ver;				// Версия программы, 6 бит
-		uint8_t proto_ver;			// Версия протокола CAN, 2 бита
+		uint8_t can_ver;			// Версия протокола CAN, 2 бита
 		uint32_t uptime;			// Uptime блока, мс.
+		uint16_t voltage;			// Напряжение питание блока
+		uint16_t current;			// Общий потребляемый ток блока
+		int8_t temperature;			// Температура блока, если есть
+		uint8_t error_flags;		// Флаги налчичия ошибок блока
+		uint8_t sn[8];				// Серийный номер блока
+		uint8_t features[7];		// Возможности блока
 	};
 	
-
-
-
+	struct block_error_t
+	{
+		uint8_t funcID;
+		uint16_t baseID;			// Базовый ID блока
+		uint8_t hw_type;			// Тип платы, 5 бит
+		uint16_t code;
+	};
 
 
 	

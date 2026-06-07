@@ -15,6 +15,7 @@ class L3Wrapper
 	
 	public:
 		using packet_t = L3Packet<L3PacketDataSize>;
+		using callback_connect_t = void (*)(L3DevType_t dev, int8_t code);
 		using callback_event_t = bool (*)(L3DevType_t dev, packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(L3DevType_t dev, packet_t &request, int8_t code);
 		using callback_reset_t = void (*)(L3DevType_t dev);
@@ -52,8 +53,9 @@ class L3Wrapper
 			return;
 		}
 		
-		void RegCallback(callback_event_t event, callback_error_t error, callback_reset_t reset)
+		void RegCallback(callback_connect_t connect, callback_event_t event, callback_error_t error, callback_reset_t reset)
 		{
+			this->_callback_connect = connect;
 			this->_callback_event = event;
 			this->_callback_error = error;
 			this->_callback_reset = reset;
@@ -110,6 +112,8 @@ class L3Wrapper
 										{
 											obj.auth = true;
 											_SendAuthResult(obj, 1);
+
+											this->_callback_connect(obj.driver->GetType(), 2);
 										}
 										else
 										{
@@ -331,6 +335,7 @@ class L3Wrapper
 			return;
 		}
 		
+		callback_connect_t _callback_connect;
 		callback_event_t _callback_event;
 		callback_error_t _callback_error;
 		callback_reset_t _callback_reset;

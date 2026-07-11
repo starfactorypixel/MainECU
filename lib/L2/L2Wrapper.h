@@ -3,10 +3,9 @@
 */
 
 #pragma once
-
 #include <stdint.h>
 #include <ESP32SJA1000.h>
-#include <RingBuffer.h>
+#include <CUtils_RingBuffer.h>
 
 class L2Wrapper
 {

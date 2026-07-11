@@ -5,7 +5,7 @@
 
 namespace Analog
 {
-	DrakePinA adc_in({0, 0, 0, ADC1_CHANNEL_0}, 0);
+	DrakePinA adc_in({ADC1_CHANNEL_0}, 0);
 	DividerVoltageCalc v2(12, 3260, 69000, 10000);
 	
 	

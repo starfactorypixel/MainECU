@@ -8,9 +8,9 @@ namespace Leds
 
 	DrakePinD leds[] = 
 	{
-		{{0, GPIO_NUM_35}, DrakePin::Output, DrakePin::Low},	// W
-		{{0, GPIO_NUM_36}, DrakePin::Output, DrakePin::Low},	// G
-		{{0, GPIO_NUM_39}, DrakePin::Output, DrakePin::Low}		// R
+		{{GPIO_NUM_35}, DrakePin::Output, DrakePin::Low},	// W
+		{{GPIO_NUM_36}, DrakePin::Output, DrakePin::Low},	// G
+		{{GPIO_NUM_39}, DrakePin::Output, DrakePin::Low}	// R
 	};
 	
 	enum leds_t : uint8_t

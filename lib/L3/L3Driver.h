@@ -4,8 +4,7 @@
 */
 
 #pragma once
-
-#include <RingBuffer.h>
+#include <CUtils_RingBuffer.h>
 
 extern uint32_t global_error_count;
 
@@ -61,7 +60,8 @@ class L3Driver
 		// Флаг того, что пакет можно забирать. Это или принятый пакет или пакет с ошибкой.
 		bool NeedGetPacket()
 		{
-			packet_t tmp = _rx_packets.First();
+			packet_t tmp;
+			if(_rx_packets.Peek(tmp) == false) return false;
 			return (tmp.IsReceived() == true || tmp.GetError() != tmp.ERROR_NONE);
 		}
 		

@@ -19,7 +19,7 @@ namespace SPICore
 
 
 	SPIManager<3> manager(SPI_OnCFG, SPI_OnTx, SPI_OnRx, SPI_OnTxRx);
-	SPI_W25Q128JV flash({0, GPIO_NUM_9}, SPI_MASTER_FREQ_40M);
+	SPI_W25Q128JV flash({GPIO_NUM_9}, SPI_MASTER_FREQ_40M);
 
 	spi_device_handle_t spi;
 

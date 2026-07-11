@@ -4,7 +4,7 @@
 
 namespace CANCore
 {
-	DrakePinD rs({0, GPIO_NUM_6}, DrakePin::OutputOpenDrain, DrakePin::High);
+	DrakePinD rs({GPIO_NUM_6}, DrakePin::OutputOpenDrain, DrakePin::High);
 
 
 	inline void Setup()

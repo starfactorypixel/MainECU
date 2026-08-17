@@ -73,30 +73,52 @@ namespace L3PacketTypes
 
 
 
+
+
+
+
 	// Пакет информации о блоке.
-	struct block_info_t
+	struct __attribute__((packed)) block_info_t
 	{
-		uint8_t funcID;
-		uint16_t baseID;			// Базовый ID блока
-		uint8_t hw_type;			// Тип платы, 5 бит
-		uint8_t hw_ver;				// Версия платы, 3 бита
-		uint8_t sw_ver;				// Версия программы, 6 бит
-		uint8_t can_ver;			// Версия протокола CAN, 2 бита
-		uint32_t uptime;			// Uptime блока, мс.
-		uint16_t voltage;			// Напряжение питание блока
-		uint16_t current;			// Общий потребляемый ток блока
-		int8_t temperature;			// Температура блока, если есть
-		uint8_t error_flags;		// Флаги налчичия ошибок блока
-		uint8_t sn[8];				// Серийный номер блока
-		uint8_t features[7];		// Возможности блока
+		uint8_t fId;
+		uint16_t baseID;				// Базовый ID блока
+		
+		// Структура должна полностью повторят пакет block_info_static_t из L2 за исключением fId и idx
+		struct __attribute__((packed))
+		{
+			uint8_t hw_type;			// Тип платы
+			uint8_t hw_ver;				// Версия платы
+			uint8_t sw_ver;				// Версия программы
+			uint8_t can_ver;			// Версия протокола CAN
+			uint8_t sn[8];				// Серийный номер блока
+			uint8_t features[7];		// Возможности блока
+		} istatic;
+
+		// Структура должна полностью повторят пакет block_info_dynamic_t из L2 за исключением fId и idx
+		struct __attribute__((packed))
+		{
+			uint32_t uptime;			// Uptime блока, мс.
+			uint16_t voltage;			// Напряжение питание блока
+			uint16_t current;			// Общий потребляемый ток блока
+			int8_t temperature;			// Температура блока, если есть
+			uint8_t error_flags;		// Флаги налчичия ошибок блока
+		} idynamic;
 	};
 	
-	struct block_error_t
+	// Пакет ошибки от блока
+	struct __attribute__((packed)) block_error_t
 	{
-		uint8_t funcID;
-		uint16_t baseID;			// Базовый ID блока
-		uint8_t hw_type;			// Тип платы, 5 бит
-		uint16_t code;
+		uint8_t fId;
+		uint16_t baseId;				// Базовый ID блока
+		uint16_t realId;				// Истинный ID который сообщил о ошибке
+		
+		// Структура должна полностью повторят пакет block_error_t из L2 за исключением fId
+		struct __attribute__((packed))
+		{
+			uint8_t group;				// Группа ошибки
+			uint8_t code;				// Код ошибки
+			uint16_t subcode;			// Доп. код ошибки
+		} error;
 	};
 
 

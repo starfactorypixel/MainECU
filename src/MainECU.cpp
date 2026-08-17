@@ -45,8 +45,9 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
 void L3OnReset(L3DevType_t dev);
 
-void BlockLostCallback(uint8_t *data, uint8_t length);
-void BlockUpdateCallback(uint8_t *data, uint8_t length);
+void OnBlockLost(uint8_t *data, uint8_t length);
+void OnBlockUpdate(uint8_t *data, uint8_t length);
+void OnBlockError(uint8_t *data, uint8_t length);
 
 StateDB DB;
 L3SubscriptionDB SubsDB;
@@ -186,6 +187,52 @@ void IRAM_ATTR onTimer()
 }
 
 
+
+
+
+
+// Колбеки обработчика BlockInfoDB //
+
+void OnCanSendData(uint16_t id, uint8_t *data, uint8_t length)
+{
+	DEBUG_LOG_TOPIC("BlockInfo", "CANSend: id: 0x%04X, fId: 0x%02X\n", id, data[0]);
+
+	L2.Send(id, data, length);
+}
+
+void OnBlockUpdate(uint8_t *data, uint8_t length)
+{
+	DEBUG_LOG_TOPIC("BlockInfo", "L3Send data\n");
+
+	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 1, data, length);
+
+	return;
+}
+
+void OnBlockError(uint8_t *data, uint8_t length)
+{
+
+	return;
+}
+
+void OnBlockLost(uint8_t *data, uint8_t length)
+{
+	DEBUG_LOG_TOPIC("BlockInfo", "L3Send lost\n");
+	
+	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 2, data, length);
+
+	return;
+}
+
+//  //
+
+
+
+
+
+
+
+
 #include "esp_pm.h"
 #include "esp_clk.h"
 
@@ -295,8 +342,10 @@ esp_pm_configure(&pm_config);
 
 
 
-	BlockInfoDB.SetLostCallback(BlockLostCallback);
-	BlockInfoDB.SetUpdateCallback(BlockUpdateCallback);
+	BlockInfoDB.SetCanSendFunc(OnCanSendData);
+	BlockInfoDB.SetUpdateCallback(OnBlockUpdate);
+	BlockInfoDB.SetErrorCallback(OnBlockError);
+	BlockInfoDB.SetLostCallback(OnBlockLost);
 
 
 
@@ -355,12 +404,6 @@ void loop()
 			//DEBUG_LOG_SIMPLE(" done;\n");
 			subs &= ~bit;
 		}
-
-		// Формируем список устройств и их парметров
-		if((id & 0x000F) < 4 && obj.data[0] >= 0x61 && obj.data[0] <= 0x63 && obj.length == 8)
-		{
-			BlockInfoDB.PutAuto(id, obj.data, obj.length, millis());
-		}
 	});
 
 	BlockInfoDB.Processing(current_time);
@@ -398,10 +441,12 @@ void L3OnConnect(L3DevType_t dev, int8_t code)
 {
 	if(code == 2)
 	{
+		/*
 		BlockInfoDB.GetAllIter([&](uint8_t *data, uint8_t length)
 		{
 			L3.Send(dev, L3_REQTYPE_NONE05, 1, data, length);
 		});
+		*/
 	}
 
 	return;
@@ -734,6 +779,8 @@ void L3OnReset(L3DevType_t dev)
 bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 {
 	bool result = false;
+
+	const uint32_t time = millis();
 	
 	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
 	//DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
@@ -771,7 +818,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			*/
 		//}
 
-
+		BlockInfoDB.ISR_CanRx(request.id, request.data, request.length, time);
 
 		static constexpr bool filter_table[256] = 
 		{
@@ -779,7 +826,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			false, false, false, false, false, false, false, false, false, false,  true, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
-			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false,  true, false, false, false, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
 			false,  true,  true,  true, false,  true, false, false, false, false, false, false, false, false, false, false, 
@@ -796,7 +843,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 
 		if(filter_table[request.data[0]])
 		{
-			DB.Set(request.id, request.data, request.length, millis());
+			DB.Set(request.id, request.data, request.length, time);
 		}
 	}
 	
@@ -808,19 +855,5 @@ void L2OnError(int8_t code)
 {
 	DEBUG_LOG_TOPIC("L2_OnEr", "code: %d;\n", code);
 	
-	return;
-}
-
-void BlockLostCallback(uint8_t *data, uint8_t length)
-{
-	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 2, data, length);
-
-	return;
-}
-
-void BlockUpdateCallback(uint8_t *data, uint8_t length)
-{
-	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 1, data, length);
-
 	return;
 }

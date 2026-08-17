@@ -410,19 +410,6 @@ void loop()
 
 
 
-/*
-	static uint32_t tmp_tick = 0;
-	uint32_t qqq_time = millis();
-	if(qqq_time - tmp_tick >= 100)
-	{
-		DEBUG_LOG_TOPIC("TICK", "delta: %d\n", (qqq_time - tmp_tick));
-
-		tmp_tick = qqq_time;
-	}
-*/
-
-
-
 
 
 

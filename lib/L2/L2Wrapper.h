@@ -9,7 +9,7 @@
 
 class L2Wrapper
 {
-	static const uint8_t _rx_buff_size = 32U;
+	static const uint8_t _rx_buff_size = 128U;
 	
 	public:
 		//using packet_t = ESP32SJA1000Class::packet_t;

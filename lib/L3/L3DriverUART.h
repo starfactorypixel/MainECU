@@ -20,7 +20,7 @@ class L3DriverUART final : public L3Driver
 		
 		void Init() override
 		{
-			SerialHW.begin(115200, SERIAL_8N1, GPIO_NUM_43, GPIO_NUM_44);
+			SerialHW.begin(921600, SERIAL_8N1, GPIO_NUM_43, GPIO_NUM_44);
 			
 			return;
 		}

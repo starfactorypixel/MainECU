@@ -333,7 +333,7 @@ esp_pm_configure(&pm_config);
 	hw_timer_t *My_timer = NULL;
     My_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(My_timer, &onTimer, true);
-    timerAlarmWrite(My_timer, 5000, true);
+    timerAlarmWrite(My_timer, 1000, true);
     timerAlarmEnable(My_timer);
 
 

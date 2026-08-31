@@ -301,6 +301,12 @@ class L3Packet
 			{
 				this->_error = ERROR_TIMEOUT;
 			}
+
+			// Временное решение по сбросу пакета при ошибках
+			if(this->_error != ERROR_NONE)
+			{
+				Init();
+			}
 			
 			return result;
 		}

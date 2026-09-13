@@ -602,8 +602,8 @@ namespace ScriptLogic
 			return;
 		}
 		
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0x25, TestOpcode);
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0x26, TestOpcode);
+		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA0, TestOpcode);
+		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA1, TestOpcode);
 		LoadFromSPIFlash();
 		
 		return;

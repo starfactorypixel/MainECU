@@ -4,7 +4,7 @@
 #include <CUtils_CRC16.h>
 #include "L3PacketConsts.hpp"
 
-namespace L3 = L3PacketConsts;
+namespace L3C = L3PacketConsts;
 
 class L3PacketTransport
 {
@@ -13,7 +13,7 @@ class L3PacketTransport
 		
 		L3PacketTransport()
 		{
-			sizeof(L3::transport_t);
+			sizeof(L3C::transport_t);
 		}
 		
 		void CfgTimeout(uint16_t timeout)
@@ -30,12 +30,12 @@ class L3PacketTransport
 				Init();
 			_param.last_rx_time = time;
 
-			if(length >= L3::TRANSPORT_PACKET_LEN_MAX) return _SetError(L3::ERROR_OVERFLOW);
-			if(length < L3::TRANSPORT_PACKET_LEN_MIN) return _SetError(L3::ERROR_MIN_LEN);
+			if(length > L3C::TRANSPORT_PACKET_LEN_MAX) return _SetError(L3C::ERROR_OVERFLOW);
+			if(length < L3C::TRANSPORT_PACKET_LEN_MIN) return _SetError(L3C::ERROR_MIN_LEN);
 
 			memcpy(&_packet, data, length);
 			_packet_put_idx = length;
-			_packet_length = L3::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
+			_packet_length = L3C::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
 
 			_Parse();
 
@@ -49,15 +49,15 @@ class L3PacketTransport
 				Init();
 			_param.last_rx_time = time;
 			
-			if(_packet_put_idx >= L3::TRANSPORT_PACKET_LEN_MAX) return _SetError(L3::ERROR_OVERFLOW);
+			if(_packet_put_idx >= L3C::TRANSPORT_PACKET_LEN_MAX) return _SetError(L3C::ERROR_OVERFLOW);
 			
 			((uint8_t *)&_packet)[_packet_put_idx++] = data;
 			
-			if(_packet_put_idx == L3::TRANSPORT_PACKET_LEN_MIN)
+			if(_packet_put_idx == L3C::TRANSPORT_PACKET_LEN_MIN)
 			{
-				if(_packet.payload_len > L3::TRANSPORT_PAYLOAD_LEN_MAX) return _SetError(L3::ERROR_PAYLOAD_LEN);
+				if(_packet.payload_len > L3C::TRANSPORT_PAYLOAD_LEN_MAX) return _SetError(L3C::ERROR_PAYLOAD_LEN);
 				
-				_packet_length = L3::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
+				_packet_length = L3C::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
 			}
 			
 			if(_packet_put_idx == _packet_length)
@@ -66,6 +66,29 @@ class L3PacketTransport
 			}
 
 			return;
+		}
+		
+		// 
+		bool RxPtrStart(uint8_t *&data, uint16_t length, uint32_t time)
+		{
+			if(time - _param.last_rx_time >= _param.timeout)
+				Init();
+			_param.last_rx_time = time;
+			
+			if(length > L3C::TRANSPORT_PACKET_LEN_MAX) return false;
+			if(length < L3C::TRANSPORT_PACKET_LEN_MIN) return false;
+			
+			_packet_put_idx = length;
+			_packet_length = L3C::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
+			data = (uint8_t *)&_packet;
+			
+			return true;
+		}
+
+		// 
+		void RxPtrEnd()
+		{
+			_Parse();
 		}
 		
 		// Взять весь пакет целиком для отправки
@@ -82,7 +105,7 @@ class L3PacketTransport
 		// Вставляет в начало, переписывая содержимое
 		bool PutPayload(const uint8_t *data, uint16_t length)
 		{
-			if(length > L3::TRANSPORT_PAYLOAD_LEN_MAX) return false;
+			if(length > L3C::TRANSPORT_PAYLOAD_LEN_MAX) return false;
 			
 			memcpy(_packet.payload, data, length);
 			_packet.payload_len = length;
@@ -93,8 +116,8 @@ class L3PacketTransport
 		// Добавляет к уже добавленным данным
 		bool AddPayload(const uint8_t *data, uint16_t length)
 		{
-			if(length > L3::TRANSPORT_PAYLOAD_LEN_MAX) return false;
-			if(_packet.payload_len + length > L3::TRANSPORT_PAYLOAD_LEN_MAX) return false;
+			if(length > L3C::TRANSPORT_PAYLOAD_LEN_MAX) return false;
+			if(_packet.payload_len + length > L3C::TRANSPORT_PAYLOAD_LEN_MAX) return false;
 			
 			memcpy(&_packet.payload[_packet.payload_len], data, length);
 			_packet.payload_len += length;
@@ -126,7 +149,7 @@ class L3PacketTransport
 		// Проверить наличие ошибок
 		bool IsError()
 		{
-			return (_param.error != L3::ERROR_NONE);
+			return (_param.error != L3C::ERROR_NONE);
 		}
 
 		// Получить код ошибки
@@ -141,8 +164,8 @@ class L3PacketTransport
 			_packet_length = 0;
 			_packet_put_idx = 0;
 			//memset(&_packet, 0x00, sizeof(_packet));
-			memset(&_packet, 0x00, L3::TRANSPORT_PACKET_LEN_MIN);
-			_param.error = L3::ERROR_NONE;
+			memset(&_packet, 0x00, L3C::TRANSPORT_PACKET_LEN_MIN);
+			_param.error = L3C::ERROR_NONE;
 			_param.parsed = false;
 			
 			return;
@@ -153,11 +176,11 @@ class L3PacketTransport
 		// Подготовка пакета перед отправкой
 		void _Prepare()
 		{
-			_packet_length = L3::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
+			_packet_length = L3C::TRANSPORT_PACKET_LEN_MIN + _packet.payload_len;
 			_packet.head[0] = 'P'; _packet.head[1] = 'X';
-			_packet.version = L3::PACKET_VERSION;
-			_packet.direction = L3::DIRECTION_FROM;
-			_packet.crc = L3::CRC_DEFAULT_VALUE;
+			_packet.version = L3C::PACKET_VERSION;
+			_packet.direction = L3C::DIRECTION_FROM;
+			_packet.crc = L3C::CRC_DEFAULT_VALUE;
 			_packet.crc = CRC16_XModem_Table((uint8_t *)&_packet, _packet_length);
 			
 			return;
@@ -166,14 +189,14 @@ class L3PacketTransport
 		// Разбор пакета при приёме
 		void _Parse()
 		{
-			//if(_packet_length < L3::TRANSPORT_PACKET_LEN_MIN || _packet_length > L3::TRANSPORT_PACKET_LEN_MAX) return _SetError(L3::ERROR_LEN);
-			if(_packet.head[0] != 'P' || _packet.head[1] != 'X') return _SetError(L3::ERROR_HEAD);
-			if(_packet.version != L3::PACKET_VERSION) return _SetError(L3::ERROR_VERSION);
-			if(_packet.direction != L3::DIRECTION_TO) return _SetError(L3::ERROR_DIRECTION);
-			//if(_packet.length > L3::TRANSPORT_PAYLOAD_LEN_MAX) return _SetError(L3::ERROR_PAYLOAD_LEN);
-			if(_CheckCRC() == false) return _SetError(L3::ERROR_CRC);
+			//if(_packet_length < L3C::TRANSPORT_PACKET_LEN_MIN || _packet_length > L3C::TRANSPORT_PACKET_LEN_MAX) return _SetError(L3C::ERROR_LEN);
+			if(_packet.head[0] != 'P' || _packet.head[1] != 'X') return _SetError(L3C::ERROR_HEAD);
+			if(_packet.version != L3C::PACKET_VERSION) return _SetError(L3C::ERROR_VERSION);
+			if(_packet.direction != L3C::DIRECTION_TO) return _SetError(L3C::ERROR_DIRECTION);
+			//if(_packet.length > L3C::TRANSPORT_PAYLOAD_LEN_MAX) return _SetError(L3C::ERROR_PAYLOAD_LEN);
+			if(_CheckCRC() == false) return _SetError(L3C::ERROR_CRC);
 			
-			_param.error = L3::ERROR_NONE;
+			_param.error = L3C::ERROR_NONE;
 			_param.parsed = true;
 			return;
 		}
@@ -181,20 +204,20 @@ class L3PacketTransport
 		bool _CheckCRC()
 		{
 			uint16_t old_crc = _packet.crc;
-			_packet.crc = L3::CRC_DEFAULT_VALUE;
+			_packet.crc = L3C::CRC_DEFAULT_VALUE;
 			uint16_t new_crc = CRC16_XModem_Table((uint8_t *)&_packet, _packet_length);
 			_packet.crc = old_crc;
 			
 			return (old_crc == new_crc);
 		}
 		
-		void _SetError(L3::error_t error)
+		void _SetError(L3C::error_t error)
 		{
 			_param.error = error;
 			return;
 		}
 		
-		L3::transport_t _packet;		// Пакет
+		L3C::transport_t _packet;		// Пакет
 		uint16_t _packet_length;		// Фактическая длина пакета
 		uint16_t _packet_put_idx;		// Смещение вставки пакета
 		
@@ -202,7 +225,7 @@ class L3PacketTransport
 		{
 			uint32_t last_rx_time;
 			uint16_t timeout;
-			L3::error_t error;
+			L3C::error_t error;
 			bool parsed;
 		} _param;
 };

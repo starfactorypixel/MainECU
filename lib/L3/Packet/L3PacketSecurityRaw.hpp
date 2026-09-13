@@ -5,23 +5,23 @@
 #include "mbedtls/chachapoly.h"
 #include "esp_random.h"
 
-namespace L3 = L3PacketConsts;
+namespace L3C = L3PacketConsts;
 
 class L3PacketSecurityRaw
 {
-	static constexpr L3::format_t _format = L3::FORMAT_RAW;
+	static constexpr L3C::format_t _format = L3C::FORMAT_RAW;
 	
 	public:
 
 		L3PacketSecurityRaw()
 		{
-			sizeof(L3::security_t);
+			sizeof(L3C::security_t);
 		}
 		
 		// Вставить пакет целиком при приёме
 		bool PutPacketPtr(const uint8_t *data, uint16_t length)
 		{
-			if(length < L3::SECURITY_PACKET_LEN_MIN || length > L3::SECURITY_PACKET_LEN_MAX) return false;
+			if(length < L3C::SECURITY_PACKET_LEN_MIN || length > L3C::SECURITY_PACKET_LEN_MAX) return false;
 			
 			memcpy(&_packet, data, length);
 			_packet_length = length;
@@ -44,7 +44,7 @@ class L3PacketSecurityRaw
 		// Вставляет в начало, переписывая содержимое
 		bool PutPayload(const uint8_t *data, uint16_t length)
 		{
-			if(length > L3::SECURITY_PAYLOAD_RAW_LEN) return false;
+			if(length > L3C::SECURITY_PAYLOAD_RAW_LEN) return false;
 			
 			memcpy(_packet.payload_raw.data, data, length);
 			_packet.payload_len = length;
@@ -55,8 +55,8 @@ class L3PacketSecurityRaw
 		// Добавляет к уже добавленным данным
 		bool AddPayload(const uint8_t *data, uint16_t length)
 		{
-			if(length > L3::SECURITY_PAYLOAD_RAW_LEN) return false;
-			if(_packet.payload_len + length > L3::SECURITY_PAYLOAD_RAW_LEN) return false;
+			if(length > L3C::SECURITY_PAYLOAD_RAW_LEN) return false;
+			if(_packet.payload_len + length > L3C::SECURITY_PAYLOAD_RAW_LEN) return false;
 			
 			memcpy(&_packet.payload_raw.data[_packet.payload_len], data, length);
 			_packet.payload_len += length;
@@ -82,7 +82,7 @@ class L3PacketSecurityRaw
 		// Проверить наличие ошибок
 		bool IsError()
 		{
-			return (_param.error != L3::ERROR_NONE);
+			return (_param.error != L3C::ERROR_NONE);
 		}
 
 		// Получить код ошибки
@@ -95,8 +95,8 @@ class L3PacketSecurityRaw
 		void Init()
 		{
 			_packet_length = 0;
-			memset(&_packet, 0x00, L3::SECURITY_PACKET_LEN_MIN);
-			_param.error = L3::ERROR_NONE;
+			memset(&_packet, 0x00, L3C::SECURITY_PACKET_LEN_MIN);
+			_param.error = L3C::ERROR_NONE;
 			_param.parsed = false;
 			
 			return;
@@ -107,7 +107,7 @@ class L3PacketSecurityRaw
 		// Подготовка пакета перед отправкой
 		void _Prepare()
 		{
-			_packet_length = L3::SECURITY_PACKET_LEN_MIN + _packet.payload_len;
+			_packet_length = L3C::SECURITY_PACKET_LEN_MIN + _packet.payload_len;
 			_packet.format = _format;
 			
 			return;
@@ -116,28 +116,28 @@ class L3PacketSecurityRaw
 		// Разбор пакета при приёме
 		void _Parse()
 		{
-			if(_packet.format != _format) return _SetError(L3::ERROR_FORMAT);
-			if(_packet.payload_len > L3::SECURITY_PAYLOAD_RAW_LEN) return _SetError(L3::ERROR_LEN);
+			if(_packet.format != _format) return _SetError(L3C::ERROR_FORMAT);
+			if(_packet.payload_len > L3C::SECURITY_PAYLOAD_RAW_LEN) return _SetError(L3C::ERROR_LEN);
 			
-			_param.error = L3::ERROR_NONE;
+			_param.error = L3C::ERROR_NONE;
 			_param.parsed = true;
 			return;
 		}
 		
-		void _SetError(L3::error_t error)
+		void _SetError(L3C::error_t error)
 		{
 			_param.error = error;
 			return;
 		}
 		
-		L3::security_t _packet;			// Пакет
+		L3C::security_t _packet;			// Пакет
 		uint16_t _packet_length;		// Фактическая длина пакета
 		
 		struct
 		{
 			uint32_t last_rx_time;
 			uint16_t timeout;
-			L3::error_t error;
+			L3C::error_t error;
 			bool parsed;
 		} _param;
 };

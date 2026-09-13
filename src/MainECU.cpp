@@ -358,8 +358,12 @@ esp_pm_configure(&pm_config);
 uint32_t current_time = 0;
 uint32_t tick = 0;
 
+//#include <Packet/test.hpp>
+
 void loop()
 {
+	//qwe();
+
     current_time = millis();
 
 	About::Loop(current_time);

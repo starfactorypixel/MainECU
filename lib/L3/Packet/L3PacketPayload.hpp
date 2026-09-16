@@ -12,7 +12,7 @@ struct L3PacketPayloadObj_t
 	uint8_t data[L3C::SECURITY_PACKET_LEN_MAX];
 };
 
-class L3PacketPayload : private RingBuffer<64, L3PacketPayloadObj_t>
+class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 {
 	public:
 
@@ -51,5 +51,26 @@ class L3PacketPayload : private RingBuffer<64, L3PacketPayloadObj_t>
 			return;
 		}
 
-		
+	private:
+
+		inline L3PacketPayloadObj_t *GetWriteSlot() noexcept
+		{
+			if(IsFull()) return nullptr;
+				
+			return &_data[_head];
+		}
+
+		inline void CommitWriteSlot() noexcept
+		{
+			_head = nextIndex(_head);
+
+			return;
+		}
+
+		inline L3PacketPayloadObj_t *GetReadSlot() noexcept
+		{
+			if(IsFull()) return nullptr;
+			
+			return &_data[_tail];
+		}
 };

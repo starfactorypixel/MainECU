@@ -6,7 +6,7 @@
 
 #include <HardwareSerial.h>
 
-class L3DriverUART final : public L3Driver
+class L3DriverUART final : public L3DriverOld
 {
 	public:
 		

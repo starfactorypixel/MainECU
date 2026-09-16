@@ -7,7 +7,7 @@
 #include <L3Constants.h>
 #include <L3Packet.h>
 #include <L3PacketTypes.h>
-#include <L3Driver.h>
+#include <L3DriverOld.h>
 
 class L3Wrapper
 {
@@ -27,7 +27,7 @@ class L3Wrapper
 			return;
 		}
 		
-		bool AddDevice(L3Driver &driver)
+		bool AddDevice(L3DriverOld &driver)
 		{
 			bool result = false;
 			
@@ -245,7 +245,7 @@ class L3Wrapper
 		{
 			bool auth;				// Флаг авторизированного устройства.
 			L3DevState_t state;		// Состояние устройства.
-			L3Driver *driver;		// Объект низкоуровневого драйвера устройства.
+			L3DriverOld *driver;	// Объект низкоуровневого драйвера устройства.
 			packet_t rx_packet;		// Объект принимаемого пакета.
 			packet_t tx_packet;		// Объект отправляемого пакета.
 			uint8_t ping_attempts;	// Кол-во попыток получить пинг.

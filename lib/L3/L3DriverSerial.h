@@ -6,7 +6,7 @@
 
 #pragma once
 
-class L3DriverSerial final : public L3Driver
+class L3DriverSerial final : public L3DriverOld
 {
 	public:
 		void Init() override

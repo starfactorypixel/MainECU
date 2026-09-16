@@ -69,7 +69,7 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 
 		inline L3PacketPayloadObj_t *GetReadSlot() noexcept
 		{
-			if(IsFull()) return nullptr;
+			if(IsEmpty()) return nullptr;
 			
 			return &_data[_tail];
 		}

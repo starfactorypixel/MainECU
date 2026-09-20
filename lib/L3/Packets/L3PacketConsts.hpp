@@ -59,6 +59,9 @@ Security
 		ERROR_HEAD = -9,
 		ERROR_MIN_LEN = -10,
 		ERROR_AUTH_FAILED = -11,
+
+		ERROR_SIGN,
+		ERROR_ENCRYPT,
 	};
 	
 	enum direction_t : uint8_t
@@ -99,6 +102,8 @@ Security
 		uint8_t _dummy2 : 8;
 		
 		uint16_t payload_len;					// Длина payload
+		uint8_t payload[SECURITY_PAYLOAD_RAW_LEN];
+		/*
 		union
 		{
 			// Если пакет FORMAT_RAW
@@ -123,5 +128,6 @@ Security
 				uint8_t tag[SECURITY_TAG_LEN];	// Тег аутентификации
 			} payload_enc;
 		};
+		*/
 	};
 };

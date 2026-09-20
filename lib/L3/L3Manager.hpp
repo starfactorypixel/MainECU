@@ -33,14 +33,13 @@ class L3Manager : public L3ManagerInterface
 		}
 
 		// Метод вызывается когда пришёл готовый пакет.
-		virtual uint16_t RxPacket(uint8_t dev_type, const uint8_t *rx, uint16_t rx_len) override
+		virtual uint16_t RxPacket(L3Driver *driver, const uint8_t *rx, uint16_t rx_len) override
 		{
 			// Пришёл пакет
 			// В rx_len указана максимальная длина которую можно обработать. это НЕ длина пакета, это >= длина пакета. Но хорошо бы убедиться что это ещё и не < пакета.
 			
 			uint8_t fId = rx[0];
 			// Работа с rx
-			L3Driver *driver = GetDriver(dev_type);
 			_RxCallback(driver, rx, rx_len);
 
 			// В конце необходимо вернуть фактическую длину пакета, которую вычислили базе fId.

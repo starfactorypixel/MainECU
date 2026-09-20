@@ -80,9 +80,11 @@ void qwe()
 
 	manager.AddDriver(dash);
 
-	manager.AddPacket(L3DriverInterface::DEVTYPE_DASHBOARD, (uint8_t *)&p1, 6);
-	manager.AddPacket(L3DriverInterface::DEVTYPE_DASHBOARD, (uint8_t *)&p2, 6);
-	manager.Commit(L3DriverInterface::DEVTYPE_DASHBOARD);
+	L3DriverInterface::dev_type_t type = dash.GetType();
+
+	manager.AddPacket(type, (uint8_t *)&p1, 6);
+	manager.AddPacket(type, (uint8_t *)&p2, 6);
+	manager.Commit(type);
 
 
 

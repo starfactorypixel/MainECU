@@ -157,7 +157,7 @@ class L3Driver : public L3DriverInterface
 				uint16_t offset = 0;
 				while(offset < length)
 				{
-					uint16_t processed = _manager->RxPacket(_dev_type, data + offset, length - offset);
+					uint16_t processed = _manager->RxPacket(this, data + offset, length - offset);
 					if(processed == 0)
 						break;
 						

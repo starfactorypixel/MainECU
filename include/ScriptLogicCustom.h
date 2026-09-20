@@ -2,6 +2,7 @@
 #include <inttypes.h>
 
 extern L2Wrapper L2;
+extern StateDB DB;
 
 namespace ScriptLogic
 {
@@ -25,6 +26,16 @@ namespace ScriptLogic
 		reg_idx_t reg2;
 		reg_idx_t reg3;
 	};
+
+	struct __attribute__((packed)) StateReadReg_t
+	{
+		uint8_t opcode;
+		reg_idx_t reg1;
+		reg_idx_t reg2;
+		uint16_t db_id;
+		var_type_t type;
+		uint8_t offset;
+	};
 	
 	void TestOpcode(DrakeScriptRegisters &registers, const uint8_t *bytes, uint16_t &offset)
 	{
@@ -41,6 +52,7 @@ namespace ScriptLogic
 				offset += sizeof(*obj);
 				break;
 			}
+			
 			case 0xA1:
 			{
 				CanSendRegVal11_t *obj = (CanSendRegVal11_t *) bytes;
@@ -60,6 +72,25 @@ namespace ScriptLogic
 					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg3), obj->type);
 				
 				L2.Send(obj->can_id, data, obj->length);
+				
+				offset += sizeof(*obj);
+				break;
+			}
+
+			case 0xA5:
+			{
+				StateReadReg_t *obj = (StateReadReg_t *) bytes;
+				
+				StateDB::db_t state = {};
+				if(DB.Get(obj->db_id, state) == true)
+				{
+					registers.Register(obj->reg1) = read_i32_fast(&state.data[obj->offset], obj->type);
+					registers.Register(obj->reg2) = millis() - state.time;
+				}
+				else
+				{
+					registers.Register(obj->reg2) = -1;
+				}
 				
 				offset += sizeof(*obj);
 				break;

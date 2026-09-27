@@ -9,6 +9,8 @@ class VirtualDevice : public VirtualDeviceInterface
 		
 		VirtualDevice(uint32_t id, uint8_t fId, T min, T max, uint16_t interval, T step, T value, algorithm_t algorithm) : _config{id, fId, min, max, interval, step, value, algorithm, 0, false}
 		{
+			_config.interval += random(0, 150);
+			_config.value = random(min, max);
 			return;
 		}
 		

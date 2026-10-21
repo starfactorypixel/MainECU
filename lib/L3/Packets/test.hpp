@@ -23,6 +23,27 @@
 	5. (Runtime) Пытаемся отправить в HW пакет, если не получается то складываем в буфер TX пакетов.
 	6. (RtOS) Переодически проверяем возможность отправки пакетов из буфера и отправляем.
 	7. 
+*/
+
+
+/*
+	1. При первом запуске:
+	1.1 Генерирует секретный ключ (32 байта);
+	1.2 Генерируем серийный номер устройства (8 байт);
+
+	2. Общение планшета:
+	2.1 При подключении планшет пытается проверить свой KEY отправив команду (check_private_key_t) подписав её последним использованным KEY.
+	    Если KEY не подошёл, esp отвечает в режиме raw код ошибки и свой SN.
+		   Планшет использует SN для поиска KEY в базе.
+		   Если SN не найден показываем форму добавления KEY.
+		Если KEY подошёл, esp отвечает в режиме raw код успеха и свой SN.
+	2.1 
+
+
+	Алгоритм beacon.
+	1. Каждый N секунд в эфир \ кабель \ сеть отправляем свой SN
+	   Этот же пакет является пакетом ping в режиме связи.
+
 
 */
 
@@ -61,6 +82,8 @@ structpack can_frame_t
 	uint16_t canId;			// ID устройства на шине CAN
 	uint8_t data_len;		// CAN длина данных
 	uint8_t data[8];		// CAN данные
+
+	uint8_t GetLen(){ return data_len + 4; }
 };
 
 
@@ -80,10 +103,12 @@ void qwe()
 
 	manager.AddDriver(dash);
 
+	sizeof(can_frame_t);
+
 	L3DriverInterface::dev_type_t type = dash.GetType();
 
-	manager.AddPacket(type, (uint8_t *)&p1, 6);
-	manager.AddPacket(type, (uint8_t *)&p2, 6);
+	manager.AddPacket(type, (uint8_t *)&p1, p1.GetLen());
+	manager.AddPacket(type, (uint8_t *)&p2, p2.GetLen());
 	manager.Commit(type);
 
 

@@ -5,7 +5,7 @@
 #pragma once
 
 #include <L3Constants.h>
-#include <L3Packet.h>
+#include <L3PacketOld.h>
 #include <L3PacketTypes.h>
 #include <L3DriverOld.h>
 
@@ -14,7 +14,7 @@ class L3Wrapper
 	static const uint8_t _max_dev = 4;
 	
 	public:
-		using packet_t = L3Packet<L3PacketDataSize>;
+		using packet_t = L3PacketOld<L3PacketDataSize>;
 		using callback_connect_t = void (*)(L3DevType_t dev, int8_t code);
 		using callback_event_t = bool (*)(L3DevType_t dev, packet_t &request, packet_t &response);
 		using callback_error_t = void (*)(L3DevType_t dev, packet_t &request, int8_t code);

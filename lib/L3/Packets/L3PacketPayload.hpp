@@ -9,27 +9,35 @@ namespace L3C = L3PacketConsts;
 struct L3PacketPayloadObj_t
 {
 	uint16_t length;
-	uint8_t data[L3C::SECURITY_PACKET_LEN_MAX];
+	L3C::format_t format;		// чем подтверждён payload: RAW — ничем
+	uint8_t data[L3C::PACKET_PAYLOAD_RAW_LEN];
 };
 
 class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 {
 	public:
+	
+		using RingBuffer::IsEmpty;
+		using RingBuffer::IsFull;
+		using RingBuffer::Count;
+		using RingBuffer::Clear;
 
-		bool Add(const uint8_t *data, uint16_t length)
+		bool Add(const uint8_t *data, uint16_t length, L3C::format_t format)
 		{
-			if(length > L3C::SECURITY_PACKET_LEN_MAX) return false;
-			
+			if(length == 0 || data == nullptr) return false;	// пустые не храним: они блокировали бы очередь
+			if(length > L3C::PACKET_PAYLOAD_RAW_LEN) return false;
+
 			auto *obj = GetWriteSlot();
 			if(!obj) return false;
-			
+
 			obj->length = length;
+			obj->format = format;
 			memcpy(obj->data, data, length);
 			CommitWriteSlot();
-			
+
 			return true;
 		}
-		
+
 		uint16_t Get(uint8_t *&data)
 		{
 			auto *obj = GetReadSlot();
@@ -39,16 +47,16 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 			return obj->length;
 		}
 
+		L3C::format_t GetFormat()
+		{
+			auto *obj = GetReadSlot();
+
+			return obj ? obj->format : L3C::FORMAT_RAW;
+		}
+
 		bool Delete()
 		{
 			return DeleteOne();
-		}
-
-		void Init()
-		{
-			Clear();
-
-			return;
 		}
 
 	private:
@@ -56,7 +64,7 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 		inline L3PacketPayloadObj_t *GetWriteSlot() noexcept
 		{
 			if(IsFull()) return nullptr;
-				
+
 			return &_data[_head];
 		}
 
@@ -70,7 +78,7 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 		inline L3PacketPayloadObj_t *GetReadSlot() noexcept
 		{
 			if(IsEmpty()) return nullptr;
-			
+
 			return &_data[_tail];
 		}
 };

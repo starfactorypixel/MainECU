@@ -10,7 +10,7 @@ extern uint32_t global_error_count;
 
 class L3DriverOld
 {
-	using packet_t = L3Packet<L3PacketDataSize>;
+	using packet_t = L3PacketOld<L3PacketDataSize>;
 	
 	public:
 		

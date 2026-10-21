@@ -26,7 +26,7 @@ class L3DriverInterface
 			DEVSTATE_AUTHERR,					// Устройство провалило проверку авторизации или подписи
 		};
 		
-		
+		virtual void Open() = 0;
 		virtual void SendData(const uint8_t *data, uint16_t length) = 0;
 		
 };

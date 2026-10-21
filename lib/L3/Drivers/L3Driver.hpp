@@ -3,9 +3,8 @@
 #include <string.h>
 #include "Drivers/L3DriverInterface.hpp"
 #include "L3ManagerInterface.hpp"
-#include "Packets/L3PacketTransport.hpp"
-#include "Packets/L3PacketSecurityRaw.hpp"
-#include "Packets/L3PacketPayload.hpp"
+#include "Packets/L3PacketRx.hpp"
+#include "Packets/L3PacketTx.hpp"
 
 class L3Driver : public L3DriverInterface
 {
@@ -13,11 +12,18 @@ class L3Driver : public L3DriverInterface
 	struct state_t
 	{
 		dev_state_t state;			// Состояние устройства
+		
 		struct
 		{
-			uint32_t time;			// Время последнего полученного пинга
 			uint8_t retries;		// Остаток попыток получить ответ на пинг
+			uint32_t prevtime;		// Время последнего полученного пинга
 		} ping;
+
+		struct
+		{
+			uint16_t interval;		// Интервал генерация beacon пакета, мс
+			uint32_t prevtime;		// Время последней оправки beacon пакета, мс
+		} beacon;
 	};
 
 	
@@ -28,7 +34,7 @@ class L3Driver : public L3DriverInterface
 		L3Driver(const L3Driver &) = delete;
 		L3Driver &operator=(const L3Driver &) = delete;
 
-		void Init(L3ManagerInterface *manager)
+		void Attach(L3ManagerInterface *manager)
 		{
 			_manager = manager;
 			Reset();
@@ -41,96 +47,52 @@ class L3Driver : public L3DriverInterface
 			return _dev_type;
 		}
 
-		// Добавляем программный пакет на отправку
 		void AddPacket(const uint8_t *data, uint16_t length)
 		{
-			// Тут копируем данные в payload L3PacketSecurity до тех пор, пока они влезают.
-			// Если больше не влезают, то вызываем Commit() чтобы зафиксировать набранный пакет и отправить его
+			if(_packet_tx.AddPayload(data, length)) return;
 
-			// Внутрь метода добавить проверку, что даже в пустой пакет у нас не влезают данные и возвращать отдельный код ошибки.
-			// чтобы не пробовать отправлять данные больше payload.
-			bool result = _security_tx.AddPayload(data, length);
-			if(result == false)
+			// Нет места в текущем пакете: отправляем накопленное и пробуем в пустой
+			if(_packet_tx.GetError() == L3C::ERROR_TX_NO_SPACE)
 			{
-				// Не вставили потому что нету места, значит фиксируем пакет и отправляем его
-
 				Commit();
-
-				// Вставляем данные в уже новый подготовленный пакет
-				_security_tx.AddPayload(data, length);
+				if(_packet_tx.AddPayload(data, length)) return;
 			}
 
+			// ERROR_TX_DATA_TOO_BIG и прочее: данные отброшены
+			DEBUG_LOG_TOPIC("L3New", "AddPacket error: %s\n", L3C::ErrorName(_packet_tx.GetError()));
 		}
 
 		void Commit()
 		{
-			// Говорим пакету что нужно выполнить все операции и подготовить пакет к отправке
-			uint8_t *data;
-			uint16_t length = _security_tx.GetPacketPtr(data);
-			// Проблема. Даже если payload пустой GetPacketPtr вернёт длину с пустым payload. Это не ошибка но зачем слать пустые пакеты?
-			if(length > 0)
-			{
-				bool result = _transport_tx.PutPayload(data, length);
-				if(result == true)
-				{
-					uint8_t *data2;
-					uint16_t length2 = _transport_tx.GetPacketPtr(data2);
-					if(length2 > 0)
-					{
-						SendData(data2, length2);
-						// Тут у нас массив байт для отправки в нужный порт
-					}
-				}
+			if(_packet_tx.PayloadIsSet() == false) return;
 
-				_security_tx.Init();
-			}
+			uint8_t *data;
+			uint16_t length = _packet_tx.GetPacketPtr(data);
+			if(length > 0)
+				SendData(data, length);
+			else
+				DEBUG_LOG_TOPIC("L3New", "Commit error: %s\n", L3C::ErrorName(_packet_tx.GetError()));
+
+			_packet_tx.Clear();		// всегда: при ошибке пакет теряется, но очередь не блокируется, формат сохраняется
 		}
 
 		void Reset()
 		{
+			uint16_t interval = _state.beacon.interval;		// memset не должен обнулять настройку
 			memset(&_state, 0x00, sizeof(_state));
 			_state.state = DEVSTATE_IDLE;
-			_transport_rx.Init();
-			_transport_tx.Init();
-			_security_rx.Init();
-			_security_tx.Init();
-			_payload_rx.Init();
+			_state.beacon.interval = interval;
+
+			_packet_tx.CfgFormat(_tx_format);
+			_packet_rx.Reset();
 
 			return;
 		}
-
-		// Пробуем копировать Transport в Security пакет
-		void AttemptCopyTransportToSecurityPacket()
-		{
-			// Метод GetPayloadPtr() устроен так, что он вернёт длину 0, если пакет не готов
-			// Поэтому безопастно дёргать этот метод всегда чтобы убедиться что пакет собран
-
-			uint8_t *data;
-			uint16_t length = _transport_rx.GetPayloadPtr(data);
-			if(length > 0)
-			{
-				// Тут нужно копировать в _security пакет полученный Payload и вставлять в буфер RX пакетов
-				_security_rx.PutPacketPtr(data, length);
-				
-				uint8_t *data2;
-				uint16_t length2 = _security_rx.GetPayloadPtr(data2);
-				if(length2 > 0)
-				{
-					_payload_rx.Add(data2, length2);
-				}
-
-				_transport_rx.Init();
-			}
-
-			return;
-		}
-
 
 		// Каким-то образом пришёл 1 байт. Прерывание или рунтайм
 		void RxByte(uint8_t rx, uint32_t rx_time)
 		{
-			_transport_rx.AddPacketByte(rx, rx_time);
-			AttemptCopyTransportToSecurityPacket();
+			_packet_rx.AddPacketByte(rx, rx_time);
 
 			return;
 		}
@@ -138,8 +100,7 @@ class L3Driver : public L3DriverInterface
 		// Каким-то образом пришли несколько байт. Прерывание или рунтайм
 		void RxBytes(const uint8_t *rx, uint16_t rx_len/*, uint32_t rx_time*/)
 		{
-			_transport_rx.PutPacketBytes(rx, rx_len, 0/*(esp_timer_get_time() / 1000ULL)*/);							// Провайдер времени.
-			AttemptCopyTransportToSecurityPacket();
+			_packet_rx.PutPacketBytes(rx, rx_len, 0/*(esp_timer_get_time() / 1000ULL)*/);							// Провайдер времени.
 		}
 
 		void Processing(uint32_t time)
@@ -147,24 +108,29 @@ class L3Driver : public L3DriverInterface
 			// Постоянно проверяем наличие принятых пакетов из буфера. Вытащить из буфера и выполнить.
 			// Пока без буфера а 1 объект
 
-			while(true)
+			while(_packet_rx.IsReady())
 			{
 				uint8_t *data;
-				uint16_t length = _payload_rx.Get(data);
+				uint16_t length = _packet_rx.GetPayloadPtr(data);
+				// _packet_rx.GetPayloadFormat() == FORMAT_RAW — данные не аутентифицированы
+				// (при политике по умолчанию RAW сюда не попадает)
 
-				if(length == 0) break;
-				
 				uint16_t offset = 0;
 				while(offset < length)
 				{
 					uint16_t processed = _manager->RxPacket(this, data + offset, length - offset);
-					if(processed == 0)
-						break;
-						
+					if(processed == 0) break;
+
 					offset += processed;
 				}
 
-				_payload_rx.Delete();
+				_packet_rx.PopPayload();
+			}
+
+			if(_state.beacon.interval > 0 && time - _state.beacon.prevtime > _state.beacon.interval)
+			{
+				_state.beacon.prevtime = time;
+				_SendBeacon();
 			}
 			
 			return;
@@ -173,13 +139,12 @@ class L3Driver : public L3DriverInterface
 
 	protected:
 		
-		L3PacketSecurityRaw _security_tx;
-		L3PacketTransport _transport_tx;
+		L3PacketSeq _seq;								// Общее для Rx и Tx состояние счётчиков линка
+		L3C::format_t _tx_format = L3C::FORMAT_SIGN;	// Формат исходящих по умолчанию (по умолчанию подписанный, не RAW)
 
-		
-		L3PacketTransport _transport_rx;
-		L3PacketSecurityRaw _security_rx;
-		L3PacketPayload _payload_rx;
+		L3PacketRx _packet_rx;
+		L3PacketTx _packet_tx;
+	
 
 		L3ManagerInterface *_manager;
 
@@ -187,6 +152,31 @@ class L3Driver : public L3DriverInterface
 		state_t _state;
 
 	private:
+
+		void _SendBeacon()
+		{
+			Commit();	// сначала накопленное: beacon идёт через тот же объект и затёр бы его
+
+			const auto &cfg = Config::body.security;	// ссылка, не копия (в копию попадал бы ключ)
+			packet_beacon_t beacon = {};
+			memcpy(beacon.sn, cfg.sn, sizeof(beacon.sn));
+			memcpy(beacon.name, cfg.name, sizeof(beacon.name));
+
+			// Beacon всегда SIGN: из его IV телефон берёт стартовые epoch/counter
+			_packet_tx.CfgFormat(L3C::FORMAT_SIGN);
+			_packet_tx.PutPayload((uint8_t *)&beacon, sizeof(beacon));
+			Commit();
+
+			_packet_tx.CfgFormat(_tx_format);
+
+			return;
+		}
 		
-		//virtual void SendData(const uint8_t *data, uint16_t length) = 0;
+		structpack packet_beacon_t
+		{
+			uint8_t fId = 0x00;
+			uint8_t length;
+			uint8_t sn[8];
+			uint8_t name[32];
+		};
 };

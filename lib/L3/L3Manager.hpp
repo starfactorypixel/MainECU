@@ -20,7 +20,9 @@ class L3Manager : public L3ManagerInterface
 
 		void AddDriver(L3Driver &driver)
 		{
-			driver.Init(this);
+			driver.Attach(this);
+			driver.Open();
+			
 			uint8_t type = driver.GetType();
 			_drivers[__builtin_ctz(type)] = &driver;
 			

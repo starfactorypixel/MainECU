@@ -82,7 +82,7 @@ struct L3Packet_t
 #endif
 
 template <uint8_t _maxDataLength = 64>
-class L3Packet
+class L3PacketOld
 {
 	static const uint8_t _version = 0b000;		// Версия протокола, 3 бита.
 	static const uint8_t _start_byte = 0x3C;	// Стартовый байт (знак '<').
@@ -100,25 +100,25 @@ class L3Packet
 			ERROR_TIMEOUT = -5
 		};
 		
-		L3Packet()
+		L3PacketOld()
 		{
 			this->Init();
 			
 			return;
 		}
 		
-		//~L3Packet() = default;
+		//~L3PacketOld() = default;
 		
 		// Copy & Move constructors.
-		//L3Packet(const L3Packet &) = default;
-		//L3Packet(L3Packet &&) = default;
+		//L3PacketOld(const L3PacketOld &) = default;
+		//L3PacketOld(L3PacketOld &&) = default;
 		
 		// Copy & Move assigments.
-		//L3Packet& operator=(const L3Packet &) = default;
-		//L3Packet& operator=(L3Packet &&) = default;
+		//L3PacketOld& operator=(const L3PacketOld &) = default;
+		//L3PacketOld& operator=(L3PacketOld &&) = default;
 		
 		// Copy assigments.
-		L3Packet& operator=(const L3Packet &parent)
+		L3PacketOld& operator=(const L3PacketOld &parent)
 		{
 			memcpy(this->_packet, parent._packet, sizeof(this->_packet));
 			this->_timeout = parent._timeout;

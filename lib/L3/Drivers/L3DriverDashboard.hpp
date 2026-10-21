@@ -13,11 +13,32 @@ class L3DriverDashboard : public L3Driver
 		L3DriverDashboard()
 		{
 			_dev_type = DEVTYPE_DASHBOARD;
-			_transport_rx.CfgTimeout(5);
+			_state.beacon.interval = 5000;
+
+			_tx_format = L3C::FORMAT_SIGN;
+			_packet_tx.CfgFormat(_tx_format);
+
+			_packet_rx.CfgTimeout(5);
+			_packet_rx.Reset();
 		}
 		
-		void Init()
+		virtual void Open() override
 		{
+			auto &cfg = Config::body.security.dev_01;	// ИМЕННО ссылка: и epoch, и key должны указывать в Config
+
+			// Если Config сохраняет асинхронно, передайте второй параметр — функцию, которая
+			// синхронно сохраняет эпоху и возвращает результат, иначе инвариант
+			// "эпоха сохранена до первой отправки" не гарантируется.
+			_seq.Cfg(&cfg.epoch /*, &CommitEpoch*/);
+
+			_packet_tx.CfgKey(cfg.key, _dev_type, &_seq);
+			_packet_rx.CfgKey(cfg.key, _dev_type, &_seq);
+
+			L3C::error_t err = _seq.Start();
+			if(err != L3C::ERROR_NONE)
+				DEBUG_LOG_TOPIC("L3New", "Seq start error: %s\n", L3C::ErrorName(err));	// подписанные пакеты отправляться не будут
+			
+			
 			const int uart_buffer_size = (1024 * 2);
 			
 			uart_config_t uart_config = 
@@ -37,7 +58,7 @@ class L3DriverDashboard : public L3Driver
 			uart_set_rx_timeout(uart_num, IDLE_BYTES);
 			uart_set_tx_idle_num(uart_num, ((IDLE_BYTES+2) * 10));
 			
-			xTaskCreate(RxTask, "L3UART_RX", 2048, this, 10, nullptr);
+			xTaskCreate(RxTask, "L3UART_RX", 4096, this, 10, nullptr);
 			
 			return;
 		}
@@ -49,7 +70,7 @@ class L3DriverDashboard : public L3Driver
 		static void RxTask(void *arg)
 		{
 			L3DriverDashboard *driver = static_cast<L3DriverDashboard *>(arg);
-			
+
 			uart_event_t event;
 			while(true)
 			{
@@ -59,18 +80,28 @@ class L3DriverDashboard : public L3Driver
 					{
 						driver->OnPacketReceived(event.size);
 					}
+					else if(event.type == UART_FIFO_OVF || event.type == UART_BUFFER_FULL)
+					{
+						uart_flush_input(uart_num);
+						xQueueReset(driver->_uart_queue);
+					}
 				}
 			}
 		}
-		
+
 		void OnPacketReceived(uint16_t length)
 		{
 			uint8_t *data;
-			if(_transport_rx.RxPtrStart(data, length, (esp_timer_get_time() / 1000ULL)) == false) return;
-			uart_read_bytes(uart_num, data, length, 0);
-			_transport_rx.RxPtrEnd();
-			AttemptCopyTransportToSecurityPacket();
-			
+			if(_packet_rx.RxPtrStart(data, length, (esp_timer_get_time() / 1000ULL)) == false)
+			{
+				uart_flush_input(uart_num);		// иначе байты останутся и склеятся со следующим кадром
+				xQueueReset(_uart_queue);
+				return;
+			}
+
+			int received = uart_read_bytes(uart_num, data, length, 0);
+			_packet_rx.RxPtrEnd(received > 0 ? received : 0);
+
 			return;
 		}
 

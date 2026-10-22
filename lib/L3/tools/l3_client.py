@@ -14,12 +14,13 @@ L3-клиент для ESP32 по UART: подключение по beacon, от
     10 01 02 ff            отправить DATA (hex) текущим форматом; первый байт — fId сообщения
     /fmt raw|sign|encrypt  сменить формат отправки
     /replay  /tamper  /stale  /badkey  /badinst  /dir  /crc  /oldboot   проверочные кадры (ESP должен отклонить)
-    /quiet                 перестать отвечать на пинги (ESP закроет сеанс, флаг в beacon станет 0)
+    /quiet                 перестать отвечать на пинги (ESP закроет сеанс и сменит его идентификатор)
     /flood N               отправить N пакетов подряд
     /resync  /status  /quit
 
 ESP на отклонённые пакеты ничего не отвечает. Видимые признаки:
-    - флаг session в beacon: 1 — ESP принял хотя бы один наш пакет и держит сеанс;
+    - идентификатор сеанса (IV[8..11] beacon): пока ESP держит наш сеанс, он не меняется;
+      сменился — ESP закрыл сеанс или перезапустился, клиент подключается заново;
     - пинги от ESP: идут, только если сеанс открыт и от нас нет пакетов;
     - логи ESP (если они идут в тот же UART, клиент печатает их строками [esp]).
 """
@@ -63,8 +64,7 @@ N_MAX = (1 << 56) - 1
 
 FID_BEACON = 0x00
 FID_PING = 0x01
-BEACON_FLAG_SESSION = 0x01
-BEACON_HEAD = struct.Struct("<BHB8sB")         # fId, interval, flags, sn, length = 13 байт, дальше length байт имени
+BEACON_HEAD = struct.Struct("<BH8sB")          # fId, interval, sn, length = 12 байт, дальше length байт имени
 BEACON_NAME_MAX = 32
 
 
@@ -91,7 +91,7 @@ def iv_parts(iv: bytes):
 
 def build_frame(direction: int, fmt: int, data: bytes, key: bytes = None, iv: bytes = None, bind: bytes = b"") -> bytes:
     """Собрать кадр. Для SIGN/ENCRYPT нужны key (32 байта) и iv (12 байт).
-    bind — 4 байта random ESP (IV beacon [8..11]) в конец AAD; обязателен для кадров клиента (к ESP),
+    bind — 4 байта идентификатора сеанса ESP (IV beacon [8..11]) в конец AAD; обязателен для кадров клиента (к ESP),
     в эфир не передаётся."""
     if fmt == FMT_RAW:
         if len(data) > PAYLOAD_MAX:
@@ -237,11 +237,11 @@ def parse_beacon(msg: bytes):
     """Beacon переменной длины: 13 байт заголовка + length байт имени. None — сообщение битое."""
     if len(msg) < BEACON_HEAD.size:
         return None
-    fid, interval, flags, sn, length = BEACON_HEAD.unpack_from(msg)
+    fid, interval, sn, length = BEACON_HEAD.unpack_from(msg)
     if length > BEACON_NAME_MAX or len(msg) != BEACON_HEAD.size + length:
         return None
     name = msg[BEACON_HEAD.size:].decode("utf-8", "replace")
-    return {"interval": interval, "flags": flags, "sn": sn.hex(), "name": name}
+    return {"interval": interval, "sn": sn.hex(), "name": name}
 
 
 def hx(b: bytes) -> str:
@@ -277,12 +277,11 @@ class Client:
         self.n_tx = 0
         self.esp_rx = 0
         self.rnd = b"\x00" * 4
-        self.esp_rnd = b"\x00" * 4
+        self.esp_session = b"\x00" * 4
         self.beacon_interval = 5000
         self.last_esp = 0.0
         self.last_frame = None
         self.last_n = None
-        self.esp_flag = None
 
     def connect(self, iv, beacon):
         epoch, inst, counter, n, _ = iv_parts(iv)
@@ -291,12 +290,15 @@ class Client:
         self.my_instance = inst ^ 0xFF
         self.n_tx = n
         self.esp_rx = n
-        self.esp_rnd = bytes(iv[8:12])      # random ESP этого запуска: в AAD наших кадров и сверка его кадров
+        self.esp_session = bytes(iv[8:12])  # идентификатор сеанса ESP: в AAD наших кадров и сверка его кадров
         self.rnd = os.urandom(4)
         self.beacon_interval = beacon["interval"] or 5000
         self.last_esp = time.monotonic()
-        self.log("ПОДКЛЮЧЕНО: SN %s «%s», epoch %d, counter %d, instance ESP 0x%02X, наш 0x%02X, random ESP %s, наш %s"
-                 % (beacon["sn"], beacon["name"], epoch, counter, inst, self.my_instance, self.esp_rnd.hex(), self.rnd.hex()))
+        self.log("ПОДКЛЮЧЕНО: SN %s «%s», epoch %d, counter %d, instance ESP 0x%02X, наш 0x%02X, сеанс ESP %s, наш random %s"
+                 % (beacon["sn"], beacon["name"], epoch, counter, inst, self.my_instance, self.esp_session.hex(), self.rnd.hex()))
+        if not self.monitor:
+            # Подключение = beacon + первый пакет: ESP открывает сеанс и перестаёт менять его идентификатор
+            self.send(b"", note="первый пакет: открыть сеанс")
 
     # --- вывод
 
@@ -358,9 +360,8 @@ class Client:
                 self.show_messages("%s N=%d:%d" % (tag, epoch, counter), data, f.iv, trusted=True)
                 return
             if is_beacon and parse_beacon(msgs[0][1]) is not None:
-                self.connect(f.iv, parse_beacon(msgs[0][1]))
-                self.esp_flag = None
                 self.show_messages("%s N=%d:%d" % (tag, epoch, counter), data, f.iv, trusted=True)
+                self.connect(f.iv, parse_beacon(msgs[0][1]))
             else:
                 self.log("%s: ждём beacon, пакет N=%d:%d пропущен" % (tag, epoch, counter))
             return
@@ -368,20 +369,19 @@ class Client:
         if inst != self.esp_instance:
             self.log("%s: instance 0x%02X вместо 0x%02X — отклонено" % (tag, inst, self.esp_instance))
             return
-        if rnd != self.esp_rnd:
-            # Другой random — другой запуск ESP. Проверяется ДО N: если эпоха ESP не успела сохраниться,
-            # N нового запуска может быть меньше esp_rx. Beacon с верной подписью и новым random —
-            # ESP перезапустился, подключаемся заново. Остальные кадры с чужим random отбрасываем.
-            # Подсунутый старый beacon переподключит к старому random; ESP не примет наши пакеты,
-            # и следующий настоящий beacon (снова другой random) вернёт всё на место
+        if rnd != self.esp_session:
+            # Другой идентификатор сеанса: ESP закрыл наш сеанс или перезапустился. Beacon с верной подписью
+            # и новым идентификатором — подключаемся заново по нему. Проверяется ДО N: если эпоха ESP не успела
+            # сохраниться, N нового запуска может быть меньше esp_rx. Остальные кадры с чужим идентификатором
+            # отбрасываем. Подсунутый старый beacon переподключит к старому идентификатору; ESP не примет наши
+            # пакеты, а следующий настоящий beacon (снова другой идентификатор) вернёт всё на место
             if is_beacon and parse_beacon(msgs[0][1]) is not None:
-                self.log("%s: random ESP сменился (%s -> %s) — ESP перезапустился, переподключение"
-                         % (tag, self.esp_rnd.hex(), rnd.hex()))
-                self.connect(f.iv, parse_beacon(msgs[0][1]))
-                self.esp_flag = None
+                self.log("%s: сеанс ESP сменился (%s -> %s) — переподключение"
+                         % (tag, self.esp_session.hex(), rnd.hex()))
                 self.show_messages("%s N=%d:%d" % (tag, epoch, counter), data, f.iv, trusted=True)
+                self.connect(f.iv, parse_beacon(msgs[0][1]))
             else:
-                self.log("%s: random %s не этого запуска ESP (%s) — отклонено" % (tag, rnd.hex(), self.esp_rnd.hex()))
+                self.log("%s: сеанс %s не текущий (%s) — отклонено" % (tag, rnd.hex(), self.esp_session.hex()))
             return
 
         if n <= self.esp_rx:
@@ -399,22 +399,11 @@ class Client:
                 self.log("%s BEACON битый (длина %d): %s" % (prefix, len(msg), hx(msg)))
             elif fid == FID_BEACON:
                 b = parse_beacon(msg)
-                flag = bool(b["flags"] & BEACON_FLAG_SESSION)
-                self.log("%s BEACON SN %s «%s» interval %d мс session=%d"
-                         % (prefix, b["sn"], b["name"], b["interval"], flag))
+                sid = iv[8:12].hex() if iv is not None else "?"
+                self.log("%s BEACON SN %s «%s» interval %d мс, сеанс %s"
+                         % (prefix, b["sn"], b["name"], b["interval"], sid))
                 if trusted and self.session and iv is not None:
                     self.beacon_interval = b["interval"] or self.beacon_interval
-                    if self.esp_flag is not None and flag != self.esp_flag:
-                        self.log("  ESP: сеанс %s" % ("ОТКРЫТ" if flag else "ЗАКРЫТ"))
-                    self.esp_flag = flag
-                    if not flag:
-                        # У ESP сеанса нет (не принял наши пакеты, закрыл по пингам, перезапустился):
-                        # счётчик никогда не идёт назад, только вверх до N beacon
-                        n = iv_parts(iv)[3]
-                        if n > self.n_tx:
-                            self.log("  ресинхронизация: наш N %d:%d -> %d:%d"
-                                     % (self.n_tx >> 32, self.n_tx & 0xFFFFFFFF, n >> 32, n & 0xFFFFFFFF))
-                            self.n_tx = n
             elif fid == FID_PING:
                 self.log("%s PING" % prefix)
                 if trusted and self.session and not self.monitor:
@@ -450,7 +439,7 @@ class Client:
         if fmt != FMT_RAW:
             iv, nn = self.next_iv(n, instance)
         frame = bytearray(build_frame(direction, fmt, data, key or self.key, iv,
-                                      self.esp_rnd if bind is None else bind))
+                                      self.esp_session if bind is None else bind))
         if tamper or self.tamper_next:
             # портим байт DATA (или последний байт тега, если DATA пустая), CRC пересчитываем,
             # чтобы кадр дошёл до проверки подписи
@@ -503,10 +492,9 @@ class Client:
         if not self.session:
             self.log("сеанса нет, ждём beacon; формат %s" % FMT_NAMES[self.fmt])
             return
-        self.log("сеанс: наш N %d:%d, instance 0x%02X, random %s; последний N ESP %d:%d; "
-                 "ESP session=%s; формат %s; quiet=%s"
-                 % (self.n_tx >> 32, self.n_tx & 0xFFFFFFFF, self.my_instance, self.rnd.hex(),
-                    self.esp_rx >> 32, self.esp_rx & 0xFFFFFFFF, self.esp_flag, FMT_NAMES[self.fmt], self.quiet))
+        self.log("сеанс ESP %s: наш N %d:%d, instance 0x%02X, random %s; последний N ESP %d:%d; формат %s; quiet=%s"
+                 % (self.esp_session.hex(), self.n_tx >> 32, self.n_tx & 0xFFFFFFFF, self.my_instance, self.rnd.hex(),
+                    self.esp_rx >> 32, self.esp_rx & 0xFFFFFFFF, FMT_NAMES[self.fmt], self.quiet))
 
     def command(self, line):
         line = line.strip()
@@ -568,7 +556,7 @@ class Client:
             self.send(payload, bad_crc=True, note="битый CRC — ESP должен отклонить")
         elif cmd == "oldboot":
             self.send(payload, bind=os.urandom(4),
-                      note="подписан под чужой random ESP (как пакет из прошлого запуска) — ESP должен отклонить по тегу")
+                      note="подписан под чужой идентификатор сеанса (как пакет закрытого сеанса или прошлого запуска) — ESP должен отклонить по тегу")
         elif cmd == "flood":
             count = int(arg[0]) if arg else 100
             t0 = time.monotonic()

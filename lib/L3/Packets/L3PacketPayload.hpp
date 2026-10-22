@@ -9,7 +9,6 @@ namespace L3C = L3PacketConsts;
 struct L3PacketPayloadObj_t
 {
 	uint16_t length;
-	L3C::format_t format;		// чем подтверждён payload: RAW — ничем
 	uint8_t data[L3C::PACKET_PAYLOAD_RAW_LEN];
 };
 
@@ -22,7 +21,7 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 		using RingBuffer::Count;
 		using RingBuffer::Clear;
 
-		bool Add(const uint8_t *data, uint16_t length, L3C::format_t format)
+		bool Add(const uint8_t *data, uint16_t length)
 		{
 			if(length == 0 || data == nullptr) return false;	// пустые не храним: они блокировали бы очередь
 			if(length > L3C::PACKET_PAYLOAD_RAW_LEN) return false;
@@ -31,7 +30,6 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 			if(!obj) return false;
 
 			obj->length = length;
-			obj->format = format;
 			memcpy(obj->data, data, length);
 			CommitWriteSlot();
 
@@ -45,13 +43,6 @@ class L3PacketPayload final : private RingBuffer<64, L3PacketPayloadObj_t>
 
 			data = obj->data;
 			return obj->length;
-		}
-
-		L3C::format_t GetFormat()
-		{
-			auto *obj = GetReadSlot();
-
-			return obj ? obj->format : L3C::FORMAT_RAW;
 		}
 
 		bool Delete()

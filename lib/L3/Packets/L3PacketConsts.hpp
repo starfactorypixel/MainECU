@@ -18,15 +18,17 @@ IV (12 байт, только SIGN/ENCRYPT)
 	[0..2]  epoch    - 24 бита
 	[3]     instance - ESP: маска канала (тип драйвера), клиент: её инверсия
 	[4..7]  counter  - 32 бита
-	[8..11] random   - ESP: новое при каждом запуске, клиент: новое при каждом подключении
+	[8..11] random   - ESP: идентификатор сеанса (новый при запуске, при закрытии сеанса и на каждом beacon,
+	                   пока сеанса нет), клиент: свои случайные байты, новые при каждом подключении
 	Номер пакета N = epoch<<32 | counter (56 бит). Каждая сторона ведёт свой N и увеличивает его на 1
 	на каждый пакет, переполнение counter переходит в epoch. Получатель принимает только N строго больше
 	последнего принятого. Эпоха 0xFFFFFF исчерпана навсегда: нужен новый ключ.
 
 Подпись (AAD GCM): SIGN — [HEAD..конец DATA], ENCRYPT — [HEAD..конец IV], данные шифруются.
-	Пакеты клиента (к ESP) дополнительно подписывают random ESP текущего запуска (IV beacon [8..11]):
-	AAD = <как выше> + random ESP. В эфир эти 4 байта не идут. Пакет, подписанный в прошлом запуске ESP,
-	не пройдёт проверку подписи, даже если эпоха не успела сохраниться. Пакеты ESP так не дополняются.
+	Пакеты клиента (к ESP) дополнительно подписывают идентификатор сеанса ESP (IV beacon [8..11]):
+	AAD = <как выше> + идентификатор. В эфир эти 4 байта не идут. Пакет из прошлого запуска ESP или
+	закрытого сеанса не пройдёт проверку подписи, даже если эпоха не успела сохраниться.
+	Пакеты ESP так не дополняются: идентификатор и так лежит в их IV.
 CRC считается последним и не защищает от подделки, это только фильтр битых кадров.
 */
 
@@ -36,7 +38,7 @@ CRC считается последним и не защищает от подд
 	static constexpr uint16_t PACKET_DATA_LEN_MAX = 64U;
 	static constexpr uint16_t PACKET_PAYLOAD_RAW_LEN = PACKET_IV_LEN + PACKET_DATA_LEN_MAX + PACKET_TAG_LEN;	// 92
 	static constexpr uint16_t PACKET_CRC_LEN = 2U;
-	static constexpr uint16_t PACKET_AAD_BIND_LEN = 4U;		// random ESP в конце AAD пакетов клиента
+	static constexpr uint16_t PACKET_AAD_BIND_LEN = 4U;		// идентификатор сеанса в конце AAD пакетов клиента
 	static constexpr uint16_t PACKET_LEN_MIN = PACKET_HEADER_LEN + PACKET_CRC_LEN;							// 8
 	static constexpr uint16_t PACKET_LEN_MAX = PACKET_HEADER_LEN + PACKET_PAYLOAD_RAW_LEN + PACKET_CRC_LEN;	// 100
 
@@ -142,8 +144,6 @@ CRC считается последним и не защищает от подд
 
 	static constexpr uint8_t FORMAT_COUNT = 8;	// 2^3, размер таблиц по формату
 
-	// Маска форматов, несущих аутентификацию (бит на формат, 8 форматов — uint8_t)
-	static constexpr uint8_t FORMATS_SECURE = (1U << FORMAT_SIGN) | (1U << FORMAT_ENCRYPT);
 
 	// IV: через raw — весь блок для GCM, через поля — части. Платформа одна (GCC, little-endian),
 	// раскладка битового поля предсказуема; static_assert ниже ловит, если это когда-то изменится

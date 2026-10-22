@@ -17,7 +17,7 @@ class L3PacketRx final : private L3Packet
 
 		L3PacketRx()
 		{
-			_allowed = L3C::FORMATS_SECURE;
+			_format = L3C::FORMAT_SIGN;
 			_timeout = 0;
 			_last_rx_time = 0;
 			_dropped = 0;
@@ -32,11 +32,11 @@ class L3PacketRx final : private L3Packet
 			return;
 		}
 
-		// Маска разрешённых форматов (1 << FORMAT_x). По умолчанию только SIGN и ENCRYPT.
-		// RAW не аутентифицирован: разрешать только если потребитель считает такие данные недоверенными
-		void CfgFormats(uint8_t mask)
+		// Формат канала: принимается только он, остальные кадры отбрасываются (ERROR_RX_FORMAT_DENIED).
+		// По умолчанию SIGN. RAW не аутентифицирован: только для каналов, где целостность даёт транспорт (TLS)
+		void CfgFormat(L3C::format_t format)
 		{
-			_allowed = mask;
+			_format = format;
 			return;
 		}
 
@@ -267,12 +267,6 @@ class L3PacketRx final : private L3Packet
 			return _payload.Get(data);
 		}
 
-		// Формат этого payload: RAW — не аутентифицирован
-		L3C::format_t GetPayloadFormat()
-		{
-			return _payload.GetFormat();
-		}
-
 		bool PopPayload()
 		{
 			return _payload.Delete();
@@ -327,7 +321,7 @@ class L3PacketRx final : private L3Packet
 			const format_info_t &f = _Info();
 
 			if(f.capacity == 0) return _SetError(L3C::ERROR_RX_FORMAT_RESERVED);
-			if((_allowed & (1U << _packet.format)) == 0) return _SetError(L3C::ERROR_RX_FORMAT_DENIED);
+			if(_packet.format != _format) return _SetError(L3C::ERROR_RX_FORMAT_DENIED);
 			if(_packet.payload_len < f.overhead) return _SetError(L3C::ERROR_RX_PAYLOAD_LEN_MIN);
 			if(_PayloadLength() > f.capacity) return _SetError(L3C::ERROR_RX_DATA_LEN);
 
@@ -343,7 +337,9 @@ class L3PacketRx final : private L3Packet
 				uint64_t n = _IV()->GetN();
 				if(_seq->IsFresh(n) == false) return _SetError(L3C::ERROR_RX_IV_REPLAY);
 
-				int ret = _Gcm(false, _seq->Random());	// клиент подписал и random ESP этого запуска
+				uint8_t session[L3C::PACKET_AAD_BIND_LEN];
+				_seq->Session(session);
+				int ret = _Gcm(false, session);	// клиент подписал и идентификатор текущего сеанса
 				if(ret != 0)
 					return _SetError((ret == MBEDTLS_ERR_GCM_AUTH_FAILED) ? L3C::ERROR_RX_AUTH : L3C::ERROR_RX_CRYPTO);
 
@@ -356,7 +352,7 @@ class L3PacketRx final : private L3Packet
 			uint16_t length = _PayloadLength();
 			if(length == 0) return true;	// валидный пакет без данных (keepalive): в очередь не кладём
 
-			if(_payload.Add(_PayloadData(), length, (L3C::format_t)_packet.format) == false)
+			if(_payload.Add(_PayloadData(), length) == false)
 			{
 				_dropped = _dropped + 1;
 				return _SetError(L3C::ERROR_RX_QUEUE_FULL);
@@ -369,7 +365,7 @@ class L3PacketRx final : private L3Packet
 		uint16_t _frame_len;		// Ожидаемая длина кадра, известна после заголовка (побайтовый приём)
 		uint32_t _last_rx_time;
 		uint16_t _timeout;
-		uint8_t _allowed;
+		L3C::format_t _format;		// формат канала: только он принимается
 		volatile uint32_t _dropped;
 		volatile uint32_t _valid;
 

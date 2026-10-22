@@ -144,7 +144,7 @@ class L3PacketTx final : private L3Packet
 
 			iv->SetN(n);
 			iv->instance = _param.type;
-			memcpy(iv->random, _seq->Random(), sizeof(iv->random));
+			_seq->Session(iv->random);			// у ESP поле random IV — идентификатор сеанса
 
 			return;
 		}

@@ -12,12 +12,16 @@
 
 Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, независимо от сеанса, без хвоста имени.
 
-Сеанс (только ESP знает, открыт ли он; состояние передаётся клиенту флагом в beacon):
-	- открывается первым принятым аутентифицированным пакетом клиента;
+Сеанс. Его идентификатор (L3PacketSeq::Session) клиент видит в IV beacon и подписывает им свои пакеты:
+	- пока сеанса нет, каждый beacon несёт новый идентификатор;
+	- сеанс открывается первым принятым аутентифицированным пакетом клиента (клиент шлёт его сразу после
+	  подключения), с этого момента идентификатор не меняется;
 	- пока пакеты клиента идут, пинги не отправляются;
 	- пауза _cfg.idle мс -> пинг, далее каждые _cfg.ping_interval мс, всего _cfg.ping_retries штук;
 	- любой валидный пакет клиента (в том числе ответ на пинг) сбрасывает отсчёт;
-	- нет ответа на последний пинг -> сеанс закрыт: L3PacketSeq::CloseSession() и OnSessionClose().
+	- нет ответа на последний пинг -> сеанс закрыт: новый идентификатор и OnSessionClose().
+	  Все пакеты закрытого сеанса (в том числе недоставленные) перестают проходить проверку подписи,
+	  клиент видит новый идентификатор в следующем beacon и подключается заново.
 */
 class L3Driver : public L3DriverInterface
 {
@@ -76,7 +80,7 @@ class L3Driver : public L3DriverInterface
 		// Открытый сеанс закрывается без OnSessionClose(): Reset вызывается и до Open()
 		void Reset()
 		{
-			_seq.CloseSession();
+			_seq.NewSession();
 
 			memset(&_state, 0x00, sizeof(_state));
 			_state.state = DEVSTATE_IDLE;
@@ -161,7 +165,7 @@ class L3Driver : public L3DriverInterface
 		{
 			_format = format;
 			_packet_tx.CfgFormat(format);
-			_packet_rx.CfgFormats(1U << format);
+			_packet_rx.CfgFormat(format);
 
 			return;
 		}
@@ -266,7 +270,7 @@ class L3Driver : public L3DriverInterface
 
 		void _CloseSession()
 		{
-			_seq.CloseSession();
+			_seq.NewSession();
 			_state.state = DEVSTATE_TIMEOUT;
 			_state.pings = 0;
 			OnSessionClose();
@@ -293,13 +297,14 @@ class L3Driver : public L3DriverInterface
 			L3Fid::beacon_t beacon = {};
 			beacon.fId = L3Fid::FID_BEACON;
 			beacon.interval = _cfg.beacon_interval;
-			beacon.flags = (_state.state == DEVSTATE_ACTIVE) ? L3Fid::BEACON_FLAG_SESSION : 0;
 			memcpy(beacon.sn, cfg.sn, sizeof(beacon.sn));
 			memcpy(beacon.name, cfg.name, sizeof(beacon.name));
 			beacon.length = (uint8_t)strnlen((const char *)beacon.name, sizeof(beacon.name));
 
-			// Beacon всегда SIGN: из его IV клиент берёт стартовый N.
+			// Beacon всегда SIGN: из его IV клиент берёт стартовый N и идентификатор сеанса.
+			// Пока сеанса нет — новый идентификатор: подсунутый старый beacon заведомо с чужим.
 			// SyncTx: N beacon выше всего принятого, новый клиент не попадёт на отбрасывание как повтор
+			if(_state.state != DEVSTATE_ACTIVE) _seq.NewSession();
 			_seq.SyncTx();
 			_packet_tx.CfgFormat(L3C::FORMAT_SIGN);
 			_packet_tx.PutPayload((const uint8_t *)&beacon, L3Fid::BEACON_HEAD_LEN + beacon.length);	// без хвоста имени

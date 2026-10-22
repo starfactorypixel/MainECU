@@ -38,7 +38,8 @@ jobs:
       # Cppcheck запускается до CodeQL, чтобы не попасть под его трассировку сборки
       - name: Cppcheck
         continue-on-error: true
-        run: pio check -e Debug --flags "cppcheck: --xml --output-file=report.xml --enable=all"
+        run: |
+          pio check -e Debug --flags "cppcheck: --xml --output-file=report.xml --enable=all"
 
       - name: Convert Cppcheck report to SARIF
         uses: Flast/cppcheck-sarif@v2

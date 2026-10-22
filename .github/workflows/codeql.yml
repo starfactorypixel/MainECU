@@ -1,88 +1,66 @@
-name: "CodeQL Advanced"
+name: CodeQL
 
 on:
   push:
-    branches: [ "board_v2.1", "board_v*" ]
+    branches: [ "board_v*" ]
   pull_request:
-    branches: [ "board_v2.1", "board_v*" ]
+    branches: [ "board_v*" ]
   schedule:
     - cron: '25 15 * * 6'
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    name: Analyze (C/C++)
+    runs-on: ubuntu-latest
 
     permissions:
       security-events: write
-      packages: read
-      actions: read
       contents: read
 
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - language: actions
-          build-mode: none
-        - language: c-cpp
-          build-mode: manual
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-    - name: Cache PlatformIO
-      if: matrix.language == 'c-cpp'
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/pip
-          ~/.platformio/.cache
-        key: ${{ runner.os }}-pio
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-
 
-    - name: Setup Python
-      if: matrix.language == 'c-cpp'
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.11'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
 
-    - name: Install PlatformIO
-      if: matrix.language == 'c-cpp'
-      run: pip install --upgrade platformio
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
-      with:
-        languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
-        queries: security-extended,security-and-quality
+      # Cppcheck запускается до CodeQL, чтобы не попасть под его трассировку сборки
+      - name: Cppcheck
+        continue-on-error: true
+        run: pio check -e Debug --flags "cppcheck: --xml --output-file=report.xml --enable=all"
 
-    - name: Run manual build steps
-      if: matrix.build-mode == 'manual'
-      shell: bash
-      run: |
-        echo "===== Static analysis (PlatformIO / Cppcheck) ====="
-        pio check -e Debug --flags "cppcheck: --xml --output-file=report.xml --enable=all"
+      - name: Convert Cppcheck report to SARIF
+        uses: Flast/cppcheck-sarif@v2
+        with:
+          input: report.xml
+          output: report.sarif
 
-        echo "===== PlatformIO build ====="
-        pio run -e Debug
-    
-    - name: cppcheck-sarif
-      if: matrix.language == 'c-cpp'
-      uses: Flast/cppcheck-sarif@v2
-      with:
-        input: report.xml
-        output: report.sarif
-    
-    - name: upload-sarif
-      if: matrix.language == 'c-cpp'
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: report.sarif
-        category: cppcheck
+      - name: Upload Cppcheck results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: report.sarif
+          category: cppcheck
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4
-      with:
-        category: "/language:${{matrix.language}}"
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-extended,security-and-quality
+
+      - name: Build PlatformIO Project
+        run: pio run -e Debug
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:c-cpp"

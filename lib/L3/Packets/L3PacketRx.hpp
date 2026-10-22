@@ -230,7 +230,7 @@ class L3PacketRx final : private L3Packet
 
 			if(_payload.Add(_PayloadData(), length, (L3C::format_t)_packet.format) == false)
 			{
-				_dropped++;
+				_dropped = _dropped + 1;
 				return _SetError(L3C::ERROR_RX_QUEUE_FULL);
 			}
 
@@ -242,7 +242,7 @@ class L3PacketRx final : private L3Packet
 		uint32_t _last_rx_time;
 		uint16_t _timeout;
 		uint8_t _allowed;
-		uint32_t _dropped;
+		volatile uint32_t _dropped;
 		volatile uint32_t _valid;
 
 		L3PacketPayload _payload;

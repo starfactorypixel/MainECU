@@ -1,5 +1,6 @@
 #pragma once
 #include <inttypes.h>
+#include <stddef.h>
 #include "L3PacketConsts.hpp"
 
 // Идентификаторы сообщений (первый байт каждого сообщения внутри DATA) и транспортные сообщения.
@@ -16,6 +17,8 @@ namespace L3Fid
 	// Флаги beacon
 	static constexpr uint8_t BEACON_FLAG_SESSION = 0x01;	// у ESP на этом канале открыт сеанс
 
+	// Beacon передаётся без хвоста имени: BEACON_HEAD_LEN + length байт (13..45).
+	// Длина сообщения при разборе: BEACON_HEAD_LEN + length
 	structpack beacon_t
 	{
 		uint8_t fId;			// FID_BEACON
@@ -23,9 +26,12 @@ namespace L3Fid
 		uint8_t flags;			// BEACON_FLAG_*
 		uint8_t sn[8];			// серийный номер
 		uint8_t length;			// длина имени в байтах, 0..32
-		uint8_t name[32];		// имя, остаток заполнен нулями
+		uint8_t name[32];		// имя; в эфир уходят только length байт
 	};
 	static_assert(sizeof(beacon_t) == 45, "beacon_t size mismatch");
+
+	static constexpr uint8_t BEACON_HEAD_LEN = offsetof(beacon_t, name);	// 13
+	static_assert(BEACON_HEAD_LEN == 13, "beacon_t layout mismatch");
 
 	structpack ping_t
 	{

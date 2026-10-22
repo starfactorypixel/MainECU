@@ -12,12 +12,13 @@ namespace L3C = L3PacketConsts;
 //   _tx — последний отправленный N. Пишет только контекст отправки (runtime).
 //   _rx — последний принятый N клиента. Пишут приём (Accept) и runtime (CloseSession), поэтому под _mux.
 //
-// Счётчики ESP и клиента независимы. Связаны они только в двух местах:
-//   NextBeacon()   — tx = max(tx, rx): следующий клиент возьмёт N из beacon и окажется выше всего принятого;
-//   CloseSession() — rx = max(rx, tx): недоставленные пакеты закрытого сеанса становятся недействительны.
+// Счётчики ESP и клиента независимы. Связывают их только две зеркальные операции, их вызывает драйвер:
+//   SyncTx()       — tx = max(tx, rx), перед beacon: следующий клиент возьмёт N из beacon и окажется
+//                    выше всего принятого;
+//   CloseSession() — rx = max(rx, tx), конец сеанса: недоставленные пакеты становятся недействительны.
 //
 // Эпоха лежит в Config (указатель) и сохраняется им асинхронно. Здесь только меняется значение:
-// +1 при запуске и новое значение, когда старшая часть _tx выросла (переполнение или подтягивание в beacon).
+// +1 при запуске и новое значение, когда старшая часть _tx выросла (переполнение или SyncTx).
 class L3PacketSeq
 {
 	public:
@@ -47,22 +48,29 @@ class L3PacketSeq
 			return L3C::ERROR_NONE;
 		}
 
-		// Отправка обычного пакета: следующий N
+		// Отправка: следующий N
 		L3C::error_t NextTx(uint64_t &n)
 		{
 			if(_started == false) return L3C::ERROR_SEQ_NOT_STARTED;
+			if(_tx >= L3C::SEQ_N_MAX) return L3C::ERROR_SEQ_EXHAUSTED;
 
-			return _Advance(_tx, n);
+			_tx++;
+
+			uint32_t epoch = (uint32_t)(_tx >> 32);
+			if(epoch != *_epoch) *_epoch = epoch;	// Config сохранит асинхронно
+
+			n = _tx;
+
+			return L3C::ERROR_NONE;
 		}
 
-		// Отправка beacon: следующий N выше всего, что уже отправлено и принято
-		L3C::error_t NextBeacon(uint64_t &n)
+		// Перед beacon (вызывает драйвер из runtime): поднять свой счётчик до принятого
+		void SyncTx()
 		{
-			if(_started == false) return L3C::ERROR_SEQ_NOT_STARTED;
-
 			uint64_t rx = _GetRx();
+			if(rx > _tx) _tx = rx;
 
-			return _Advance((rx > _tx) ? rx : _tx, n);
+			return;
 		}
 
 		// Приём: свежий ли номер (проверка до крипто)
@@ -102,20 +110,6 @@ class L3PacketSeq
 		}
 
 	private:
-
-		L3C::error_t _Advance(uint64_t base, uint64_t &n)
-		{
-			if(base >= L3C::SEQ_N_MAX) return L3C::ERROR_SEQ_EXHAUSTED;
-
-			_tx = base + 1;
-
-			uint32_t epoch = (uint32_t)(_tx >> 32);
-			if(epoch != *_epoch) *_epoch = epoch;	// Config сохранит асинхронно
-
-			n = _tx;
-
-			return L3C::ERROR_NONE;
-		}
 
 		uint64_t _GetRx()
 		{

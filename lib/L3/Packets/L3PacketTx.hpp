@@ -98,11 +98,10 @@ class L3PacketTx final : private L3Packet
 		}
 
 		// Подписать/зашифровать (один раз) и вернуть готовый кадр. 0 — ошибка, см. GetError().
-		// beacon == true — номер берётся через L3PacketSeq::NextBeacon() (подтягивается к принятому).
 		// Повторный вызов отдаёт тот же кадр с тем же N
-		uint16_t GetPacketPtr(uint8_t *&data, bool beacon = false)
+		uint16_t GetPacketPtr(uint8_t *&data)
 		{
-			if(_sealed == false && _Seal(beacon) == false)
+			if(_sealed == false && _Seal() == false)
 				return 0;
 
 			data = (uint8_t *)&_packet;
@@ -112,7 +111,7 @@ class L3PacketTx final : private L3Packet
 
 	private:
 
-		bool _Seal(bool beacon)
+		bool _Seal()
 		{
 			const format_info_t &f = _Info();
 
@@ -124,7 +123,7 @@ class L3PacketTx final : private L3Packet
 				if(_seq == nullptr) return _SetError(L3C::ERROR_CFG_NO_SEQ);
 
 				uint64_t n;
-				L3C::error_t err = beacon ? _seq->NextBeacon(n) : _seq->NextTx(n);
+				L3C::error_t err = _seq->NextTx(n);
 				if(err != L3C::ERROR_NONE) return _SetError(err);
 
 				_IVWrite(n);

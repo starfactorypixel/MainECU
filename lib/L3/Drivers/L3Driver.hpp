@@ -10,7 +10,7 @@
 /*
 Канал связи с одним клиентом.
 
-Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, независимо от сеанса.
+Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, независимо от сеанса, без хвоста имени.
 
 Сеанс (только ESP знает, открыт ли он; состояние передаётся клиенту флагом в beacon):
 	- открывается первым принятым аутентифицированным пакетом клиента;
@@ -69,7 +69,7 @@ class L3Driver : public L3DriverInterface
 		{
 			if(_packet_tx.PayloadIsSet() == false) return;
 
-			_Send(false);
+			_Send();
 		}
 
 		// Сброс канала: настройки (_cfg) сохраняются, состояние и разбор приёма — нет.
@@ -186,10 +186,10 @@ class L3Driver : public L3DriverInterface
 			uint32_t beacon_time;		// Время последнего beacon, мс
 		};
 
-		void _Send(bool beacon)
+		void _Send()
 		{
 			uint8_t *data;
-			uint16_t length = _packet_tx.GetPacketPtr(data, beacon);
+			uint16_t length = _packet_tx.GetPacketPtr(data);
 			if(length > 0)
 				SendData(data, length);
 			else
@@ -287,10 +287,12 @@ class L3Driver : public L3DriverInterface
 			memcpy(beacon.name, cfg.name, sizeof(beacon.name));
 			beacon.length = (uint8_t)strnlen((const char *)beacon.name, sizeof(beacon.name));
 
-			// Beacon всегда SIGN: из его IV клиент берёт стартовые epoch/counter
+			// Beacon всегда SIGN: из его IV клиент берёт стартовый N.
+			// SyncTx: N beacon выше всего принятого, новый клиент не попадёт на отбрасывание как повтор
+			_seq.SyncTx();
 			_packet_tx.CfgFormat(L3C::FORMAT_SIGN);
-			_packet_tx.PutPayload((const uint8_t *)&beacon, sizeof(beacon));
-			_Send(true);
+			_packet_tx.PutPayload((const uint8_t *)&beacon, L3Fid::BEACON_HEAD_LEN + beacon.length);	// без хвоста имени
+			_Send();
 
 			_packet_tx.CfgFormat(_tx_format);
 

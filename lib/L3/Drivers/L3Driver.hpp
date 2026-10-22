@@ -81,7 +81,7 @@ class L3Driver : public L3DriverInterface
 			memset(&_state, 0x00, sizeof(_state));
 			_state.state = DEVSTATE_IDLE;
 
-			_packet_tx.CfgFormat(_tx_format);
+			_packet_tx.Clear();		// недособранный исходящий пакет выбрасывается, формат канала сохраняется
 			_packet_rx.Reset();
 			_state.rx_count = _packet_rx.GetValidCount();
 
@@ -126,8 +126,7 @@ class L3Driver : public L3DriverInterface
 			{
 				uint8_t *data;
 				uint16_t length = _packet_rx.GetPayloadPtr(data);
-				// _packet_rx.GetPayloadFormat() == FORMAT_RAW — данные не аутентифицированы
-				// (при политике по умолчанию RAW сюда не попадает)
+				// Здесь только формат канала (_format): RAW возможен лишь на канале, где его разрешил драйвер
 
 				_Dispatch(data, length);
 				_packet_rx.PopPayload();
@@ -157,6 +156,16 @@ class L3Driver : public L3DriverInterface
 			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса
 		};
 
+		// Формат канала. Вызывается один раз, в конструкторе драйвера
+		void _CfgFormat(L3C::format_t format)
+		{
+			_format = format;
+			_packet_tx.CfgFormat(format);
+			_packet_rx.CfgFormats(1U << format);
+
+			return;
+		}
+
 		// Сеанс открыт: первый валидный пакет клиента после IDLE/TIMEOUT
 		virtual void OnSessionOpen() {}
 
@@ -165,7 +174,9 @@ class L3Driver : public L3DriverInterface
 
 		cfg_t _cfg;
 		L3PacketSeq _seq;								// Общее для Rx и Tx состояние счётчиков канала
-		L3C::format_t _tx_format = L3C::FORMAT_SIGN;	// Формат исходящих по умолчанию (подписанный, не RAW)
+		// Формат канала (задаётся _CfgFormat): в нём идут исходящие и только он принимается (beacon — всегда SIGN).
+		// UART — SIGN, LoRa — ENCRYPT, сервер через HTTPS — RAW (целостность даёт TLS)
+		L3C::format_t _format = L3C::FORMAT_SIGN;
 
 		L3PacketRx _packet_rx;
 		L3PacketTx _packet_tx;
@@ -294,7 +305,7 @@ class L3Driver : public L3DriverInterface
 			_packet_tx.PutPayload((const uint8_t *)&beacon, L3Fid::BEACON_HEAD_LEN + beacon.length);	// без хвоста имени
 			_Send();
 
-			_packet_tx.CfgFormat(_tx_format);
+			_packet_tx.CfgFormat(_format);
 
 			return;
 		}

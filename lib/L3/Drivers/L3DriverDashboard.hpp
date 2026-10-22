@@ -18,8 +18,7 @@ class L3DriverDashboard : public L3Driver
 			_cfg.ping_interval = 1000;
 			_cfg.ping_retries = 3;
 
-			_tx_format = L3C::FORMAT_SIGN;
-			_packet_tx.CfgFormat(_tx_format);
+			_CfgFormat(L3C::FORMAT_SIGN);		// UART: всегда подпись (и приём, и передача)
 
 			_packet_rx.CfgTimeout(5);
 			_packet_rx.Reset();
@@ -67,6 +66,8 @@ class L3DriverDashboard : public L3Driver
 		
 	private:
 		
+		// Событие UART_DATA (по таймауту линии или по заполнению FIFO) — сигнал «в буфере есть данные».
+		// Границы кусков с границами кадров не совпадают, кадры собирает L3PacketRx::PutStream()
 		static void RxTask(void *arg)
 		{
 			L3DriverDashboard *driver = static_cast<L3DriverDashboard *>(arg);
@@ -76,31 +77,30 @@ class L3DriverDashboard : public L3Driver
 			{
 				if(xQueueReceive(driver->_uart_queue, &event, portMAX_DELAY) == pdTRUE)
 				{
-					if(event.type == UART_DATA && event.timeout_flag)
+					if(event.type == UART_DATA)
 					{
-						driver->OnPacketReceived(event.size);
+						driver->OnDataReceived();
 					}
 					else if(event.type == UART_FIFO_OVF || event.type == UART_BUFFER_FULL)
 					{
 						uart_flush_input(uart_num);
 						xQueueReset(driver->_uart_queue);
+						driver->_packet_rx.DropFrame();		// начало кадра было, продолжение потеряно
 					}
 				}
 			}
 		}
 
-		void OnPacketReceived(uint16_t length)
+		// Забрать всё, что лежит в буфере драйвера UART. Размер из события не используется:
+		// если событие потерялось (очередь переполнилась), его байты не застрянут в буфере
+		void OnDataReceived()
 		{
-			uint8_t *data;
-			if(_packet_rx.RxPtrStart(data, length, (esp_timer_get_time() / 1000ULL)) == false)
-			{
-				uart_flush_input(uart_num);		// иначе байты останутся и склеятся со следующим кадром
-				xQueueReset(_uart_queue);
-				return;
-			}
+			uint8_t buffer[128];
+			uint32_t time = (uint32_t)(esp_timer_get_time() / 1000ULL);
+			int length;
 
-			int received = uart_read_bytes(uart_num, data, length, 0);
-			_packet_rx.RxPtrEnd(received > 0 ? received : 0);
+			while((length = uart_read_bytes(uart_num, buffer, sizeof(buffer), 0)) > 0)
+				_packet_rx.PutStream(buffer, (uint16_t)length, time);
 
 			return;
 		}

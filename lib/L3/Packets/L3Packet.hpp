@@ -126,31 +126,38 @@ class L3Packet
 		}
 
 		// Подпись/шифрование (encrypt) или проверка/расшифровка (!encrypt) на месте.
+		// bind — PACKET_AAD_BIND_LEN байт, дописываемых в конец AAD (random ESP для пакетов клиента), или nullptr.
+		// Контекст GCM готовится один раз в CfgKey(): расписание ключа AES и H не пересчитываются
+		// на каждый пакет. Повторное использование контекста допустимо: каждый вызов mbedtls
+		// начинает новое сообщение со своим IV. Rx и Tx — разные объекты, контексты не делятся между задачами.
 		// Возвращает код mbedtls, 0 — успех
-		int _Gcm(bool encrypt)
+		int _Gcm(bool encrypt, const uint8_t *bind = nullptr)
 		{
-			mbedtls_gcm_context ctx;
-			mbedtls_gcm_init(&ctx);
+			if(_gcm_ready == false) return MBEDTLS_ERR_GCM_BAD_INPUT;
 
-			int ret = mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, _param.key, 256);
-			if(ret == 0)
+			uint8_t *data = _PayloadData();
+			uint16_t crypt_len = _CryptLen();
+
+			// AAD одним куском: в пакете за DATA лежит тег, дописать на месте нельзя — собираем копию
+			const uint8_t *aad = _AAD();
+			uint16_t aad_len = _AADLen();
+			uint8_t aad_buf[L3C::PACKET_HEADER_LEN + L3C::PACKET_IV_LEN + L3C::PACKET_DATA_LEN_MAX + L3C::PACKET_AAD_BIND_LEN];
+			if(bind != nullptr)
 			{
-				uint8_t *data = _PayloadData();
-				uint16_t crypt_len = _CryptLen();
-
-				if(encrypt)
-					ret = mbedtls_gcm_crypt_and_tag(&ctx, MBEDTLS_GCM_ENCRYPT, crypt_len,
-						_IV()->raw, L3C::PACKET_IV_LEN, _AAD(), _AADLen(),
-						data, data, L3C::PACKET_TAG_LEN, _Tag());
-				else
-					ret = mbedtls_gcm_auth_decrypt(&ctx, crypt_len,
-						_IV()->raw, L3C::PACKET_IV_LEN, _AAD(), _AADLen(),
-						_Tag(), L3C::PACKET_TAG_LEN, data, data);
+				memcpy(aad_buf, aad, aad_len);
+				memcpy(aad_buf + aad_len, bind, L3C::PACKET_AAD_BIND_LEN);
+				aad = aad_buf;
+				aad_len += L3C::PACKET_AAD_BIND_LEN;
 			}
 
-			mbedtls_gcm_free(&ctx);
+			if(encrypt)
+				return mbedtls_gcm_crypt_and_tag(&_gcm, MBEDTLS_GCM_ENCRYPT, crypt_len,
+					_IV()->raw, L3C::PACKET_IV_LEN, aad, aad_len,
+					data, data, L3C::PACKET_TAG_LEN, _Tag());
 
-			return ret;
+			return mbedtls_gcm_auth_decrypt(&_gcm, crypt_len,
+				_IV()->raw, L3C::PACKET_IV_LEN, aad, aad_len,
+				_Tag(), L3C::PACKET_TAG_LEN, data, data);
 		}
 
 		bool _SetError(L3C::error_t error)
@@ -161,6 +168,8 @@ class L3Packet
 
 		L3C::packet_t _packet;
 		L3PacketSeq *_seq;
+		mbedtls_gcm_context _gcm;
+		bool _gcm_ready;
 
 		struct
 		{
@@ -179,14 +188,32 @@ class L3Packet
 			_param.key = nullptr;
 			_param.type = 0;
 			_param.error = L3C::ERROR_NONE;
+
+			mbedtls_gcm_init(&_gcm);
+			_gcm_ready = false;
 		}
 
-		// key — 32 байта, должен жить не меньше объекта (ссылка на Config, не на копию)
+		~L3Packet()
+		{
+			mbedtls_gcm_free(&_gcm);
+		}
+
+		L3Packet(const L3Packet &) = delete;
+		L3Packet &operator=(const L3Packet &) = delete;
+
+		// key — 32 байта. Ключ копируется в контекст GCM здесь, один раз: если ключ в Config
+		// поменялся (новое сопряжение), CfgKey() нужно вызвать снова, иначе работа продолжится со старым
 		void CfgKey(const uint8_t key[32], uint8_t type, L3PacketSeq *seq)
 		{
 			_param.key = key;
 			_param.type = type;
 			_seq = seq;
+
+			mbedtls_gcm_free(&_gcm);
+			mbedtls_gcm_init(&_gcm);
+			_gcm_ready = (key != nullptr) && (mbedtls_gcm_setkey(&_gcm, MBEDTLS_CIPHER_ID_AES, key, 256) == 0);
+
+			return;
 		}
 
 		bool IsError()

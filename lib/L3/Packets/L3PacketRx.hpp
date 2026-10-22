@@ -40,6 +40,7 @@ class L3PacketRx final : private L3Packet
 			return;
 		}
 
+		// Вызывать, когда задача приёма остановлена: очередь payload не защищена от одновременной записи
 		void Reset()
 		{
 			_ResetFrame();
@@ -102,6 +103,133 @@ class L3PacketRx final : private L3Packet
 			}
 
 			return true;
+		}
+
+		// Кусок потока (UART/USB): в нём может быть несколько кадров подряд, начало или конец кадра,
+		// мусор между кадрами. Кадр, не дособранный до конца куска, продолжится со следующим куском.
+		// Данные копируются блоками, побайтно обрабатывается только поиск сигнатуры.
+		// Если кандидат в кадр оказался мусором (длина вне диапазона, CRC не сошёлся), его байты со второго
+		// просматриваются заново: внутри мог начинаться настоящий кадр.
+		// Возвращает число кадров, прошедших все проверки; ошибка последнего отбракованного в этом куске — GetError()
+		uint16_t PutStream(const uint8_t *data, uint16_t length, uint32_t time)
+		{
+			_CheckTimeout(time);
+			_param.error = L3C::ERROR_NONE;
+
+			uint8_t *frame = (uint8_t *)&_packet;
+			uint16_t accepted = 0;
+			L3C::error_t rejected = L3C::ERROR_NONE;	// успешный кадр не должен затирать ошибку предыдущего
+
+			// Байты на повторный просмотр. Помещаются всегда: это хвост одного отбракованного кадра
+			uint8_t back[L3C::PACKET_LEN_MAX];
+			uint16_t back_len = 0, back_pos = 0;
+
+			while(true)
+			{
+				const uint8_t *src;
+				uint16_t avail;
+				bool from_back = (back_pos < back_len);
+
+				if(from_back) { src = back + back_pos; avail = back_len - back_pos; }
+				else if(length > 0) { src = data; avail = length; }
+				else break;
+
+				uint16_t used;
+				bool rescan = false;
+
+				if(_put_idx == 0)
+				{
+					// Поиск 'P'
+					const uint8_t *p = (const uint8_t *)memchr(src, L3C::PACKET_HEAD_0, avail);
+					if(p == nullptr)
+					{
+						used = avail;
+					}
+					else
+					{
+						used = (uint16_t)(p - src) + 1;
+						frame[_put_idx++] = L3C::PACKET_HEAD_0;
+					}
+				}
+				else if(_put_idx == 1)
+				{
+					used = 1;
+					if(src[0] == L3C::PACKET_HEAD_1)
+						frame[_put_idx++] = src[0];
+					else if(src[0] != L3C::PACKET_HEAD_0)	// 'P','P','X' — вторая 'P' может быть началом кадра
+						_ResetFrame();
+				}
+				else
+				{
+					// Заголовок, затем остаток кадра — блоками
+					uint16_t target = (_frame_len == 0) ? L3C::PACKET_HEADER_LEN : _frame_len;
+					used = target - _put_idx;
+					if(used > avail) used = avail;
+
+					memcpy(frame + _put_idx, src, used);
+					_put_idx += used;
+
+					if(_frame_len == 0 && _put_idx == L3C::PACKET_HEADER_LEN)
+					{
+						if(_packet.payload_len > L3C::PACKET_PAYLOAD_RAW_LEN)
+						{
+							rejected = L3C::ERROR_RX_PAYLOAD_LEN_MAX;
+							rescan = true;
+						}
+						else
+						{
+							_frame_len = _PacketLength() + L3C::PACKET_CRC_LEN;		// не больше PACKET_LEN_MAX
+						}
+					}
+
+					if(rescan == false && _frame_len != 0 && _put_idx == _frame_len)
+					{
+						if(_Parse())
+						{
+							accepted++;
+							_ResetFrame();
+						}
+						else if(_param.error == L3C::ERROR_RX_CRC)
+						{
+							rejected = _param.error;
+							rescan = true;		// кадра не было: искать сигнатуру внутри
+						}
+						else
+						{
+							rejected = _param.error;
+							_ResetFrame();		// кадр целый, но отклонён (повтор, подпись...): внутри искать нечего
+						}
+					}
+				}
+
+				if(from_back) back_pos += used;
+				else { data += used; length -= used; }
+
+				if(rescan)
+				{
+					// Новая очередь просмотра: байты кандидата со второго + ещё не просмотренный хвост старой
+					uint16_t n = _put_idx - 1;
+					uint16_t rest = back_len - back_pos;
+					if(n + rest > sizeof(back)) rest = 0;	// не бывает (n + rest < PACKET_LEN_MAX), страховка
+					memmove(back + n, back + back_pos, rest);
+					memcpy(back, frame + 1, n);
+					back_len = n + rest;
+					back_pos = 0;
+					_ResetFrame();
+				}
+			}
+
+			_param.error = rejected;
+
+			return accepted;
+		}
+
+		// Сбросить недособранный кадр (например, после переполнения буфера UART)
+		void DropFrame()
+		{
+			_ResetFrame();
+
+			return;
 		}
 
 		// Приём без копирования (например, из DMA/UART): получить буфер размером length...
@@ -215,7 +343,7 @@ class L3PacketRx final : private L3Packet
 				uint64_t n = _IV()->GetN();
 				if(_seq->IsFresh(n) == false) return _SetError(L3C::ERROR_RX_IV_REPLAY);
 
-				int ret = _Gcm(false);
+				int ret = _Gcm(false, _seq->Random());	// клиент подписал и random ESP этого запуска
 				if(ret != 0)
 					return _SetError((ret == MBEDTLS_ERR_GCM_AUTH_FAILED) ? L3C::ERROR_RX_AUTH : L3C::ERROR_RX_CRYPTO);
 

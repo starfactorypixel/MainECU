@@ -3,6 +3,24 @@
 #include "L3Manager.hpp"
 #include "Drivers/L3DriverDashboard.hpp"
 
+/*
+TODO
+	1. Барьеры памяти в очереди payload (L3PacketPayload поверх CUtils RingBuffer).
+	   RingBuffer защищает индексы только volatile. На двухъядерном ESP32-S3 задача приёма (пишет)
+	   и runtime (читает) могут работать на разных ядрах, а компилятор вправе переставить запись данных
+	   слота после сдвига _head. Тогда runtime прочитает слот до того, как он заполнен.
+	   Исправление в L3PacketPayload, без правки CUtils:
+		- __atomic_thread_fence(__ATOMIC_RELEASE) — перед сдвигом _head (после memcpy данных)
+		  и перед сдвигом _tail (после чтения данных);
+		- __atomic_thread_fence(__ATOMIC_ACQUIRE) — после проверок IsEmpty() / IsFull().
+	   L3PacketRx::Reset() (Clear очереди) — только при остановленной задаче приёма.
+
+СДЕЛАНО
+	- Привязка пакетов клиента к запуску ESP: клиент дописывает в конец AAD 4 байта random ESP
+	  (IV beacon [8..11]), в эфир они не идут. Защищает от повтора записанных пакетов клиента после
+	  сбоя питания, если эпоха не успела сохраниться (Config пишет раз в 30 с).
+*/
+
 
 /*
 Приём пакетов:

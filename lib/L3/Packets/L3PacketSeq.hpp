@@ -6,25 +6,26 @@
 
 namespace L3C = L3PacketConsts;
 
-// Общее состояние счётчиков одного линка (один экземпляр на драйвер, его делят Rx и Tx).
-//   _tx — последний отправленный N, пишется только задачей отправки.
-//   _rx — наибольший принятый и проверенный N партнёра, пишется только задачей приёма.
-// Эпоха хранится снаружи (Config) и меняется только здесь: при запуске и при переносе счётчика.
+// Счётчики одного канала: один экземпляр на драйвер, общий для Rx и Tx.
+//
+//   N = epoch<<32 | counter, 56 бит. Переполнение counter просто переходит в epoch.
+//   _tx — последний отправленный N. Пишет только контекст отправки (runtime).
+//   _rx — последний принятый N клиента. Пишут приём (Accept) и runtime (CloseSession), поэтому под _mux.
+//
+// Счётчики ESP и клиента независимы. Связаны они только в двух местах:
+//   NextBeacon()   — tx = max(tx, rx): следующий клиент возьмёт N из beacon и окажется выше всего принятого;
+//   CloseSession() — rx = max(rx, tx): недоставленные пакеты закрытого сеанса становятся недействительны.
+//
+// Эпоха лежит в Config (указатель) и сохраняется им асинхронно. Здесь только меняется значение:
+// +1 при запуске и новое значение, когда старшая часть _tx выросла (переполнение или подтягивание в beacon).
 class L3PacketSeq
 {
 	public:
 
-		// Синхронное сохранение эпохи. true — сохранено.
-		// Если не задан, считается, что Config сохранит значение сам (инвариант "сохранено
-		// до первой отправки" тогда не гарантируется)
-		typedef bool (*commit_t)();
-
-		void Cfg(uint32_t *epoch, commit_t commit = nullptr)
+		void Cfg(uint32_t *epoch)
 		{
 			_epoch = epoch;
-			_commit = commit;
 			_started = false;
-			_dirty = false;
 
 			return;
 		}
@@ -38,54 +39,53 @@ class L3PacketSeq
 			if(*_epoch >= L3C::SEQ_EPOCH_MAX) return L3C::ERROR_SEQ_EXHAUSTED;
 
 			(*_epoch)++;
-			_dirty = true;
-			if(_Store() == false) return L3C::ERROR_SEQ_COMMIT;
-
 			_tx = (uint64_t)(*_epoch) << 32;
-			_SetRx(_tx);						// пакеты партнёра из прошлых загрузок отсекаются
+			_SetRx(_tx);						// пакеты клиентов из прошлых запусков отсекаются
 			esp_fill_random(_random, sizeof(_random));
 			_started = true;
 
 			return L3C::ERROR_NONE;
 		}
 
-		// Задача отправки: выдать следующий N.
-		// Подтягивается к _rx, чтобы следующий партнёр стартовал выше предыдущего
-		L3C::error_t Next(uint64_t &n)
+		// Отправка обычного пакета: следующий N
+		L3C::error_t NextTx(uint64_t &n)
 		{
 			if(_started == false) return L3C::ERROR_SEQ_NOT_STARTED;
 
-			uint64_t floor = _GetRx();
-			if(floor > _tx) _tx = floor;
-
-			if(_tx >= L3C::SEQ_N_MAX) return L3C::ERROR_SEQ_EXHAUSTED;
-			_tx++;
-
-			uint32_t epoch = (uint32_t)(_tx >> 32);
-			if(epoch != *_epoch)
-			{
-				*_epoch = epoch;
-				_dirty = true;
-			}
-
-			if(_dirty && _Store() == false) return L3C::ERROR_SEQ_COMMIT;	// без сохранения не отправляем
-
-			n = _tx;
-
-			return L3C::ERROR_NONE;
+			return _Advance(_tx, n);
 		}
 
-		// Задача приёма: свежий ли номер (проверка до крипто)
+		// Отправка beacon: следующий N выше всего, что уже отправлено и принято
+		L3C::error_t NextBeacon(uint64_t &n)
+		{
+			if(_started == false) return L3C::ERROR_SEQ_NOT_STARTED;
+
+			uint64_t rx = _GetRx();
+
+			return _Advance((rx > _tx) ? rx : _tx, n);
+		}
+
+		// Приём: свежий ли номер (проверка до крипто)
 		bool IsFresh(uint64_t n)
 		{
 			return n > _GetRx();
 		}
 
-		// Задача приёма: зафиксировать номер, ТОЛЬКО после успешной проверки тега
+		// Приём: зафиксировать номер, ТОЛЬКО после успешной проверки тега
 		void Accept(uint64_t n)
 		{
 			portENTER_CRITICAL(&_mux);
 			if(n > _rx) _rx = n;
+			portEXIT_CRITICAL(&_mux);
+
+			return;
+		}
+
+		// Конец сеанса (вызывает драйвер из runtime): всё, что клиент не доставил, становится недействительным
+		void CloseSession()
+		{
+			portENTER_CRITICAL(&_mux);
+			if(_tx > _rx) _rx = _tx;
 			portEXIT_CRITICAL(&_mux);
 
 			return;
@@ -103,12 +103,18 @@ class L3PacketSeq
 
 	private:
 
-		bool _Store()
+		L3C::error_t _Advance(uint64_t base, uint64_t &n)
 		{
-			if(_commit != nullptr && _commit() == false) return false;
-			_dirty = false;
+			if(base >= L3C::SEQ_N_MAX) return L3C::ERROR_SEQ_EXHAUSTED;
 
-			return true;
+			_tx = base + 1;
+
+			uint32_t epoch = (uint32_t)(_tx >> 32);
+			if(epoch != *_epoch) *_epoch = epoch;	// Config сохранит асинхронно
+
+			n = _tx;
+
+			return L3C::ERROR_NONE;
 		}
 
 		uint64_t _GetRx()
@@ -130,11 +136,9 @@ class L3PacketSeq
 		}
 
 		uint32_t *_epoch = nullptr;
-		commit_t _commit = nullptr;
 		uint64_t _tx = 0;
 		uint64_t _rx = 0;
 		uint8_t _random[4] = {};
 		bool _started = false;
-		bool _dirty = false;
 		portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
 };

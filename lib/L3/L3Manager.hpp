@@ -13,7 +13,7 @@ class L3Manager : public L3ManagerInterface
 		L3Manager() = delete;
 		L3Manager(const L3Manager &) = delete;
 		L3Manager &operator=(const L3Manager &) = delete;
-		L3Manager(rx_packet_function_t rx, get_time_ms_function_t millis) : _RxCallback(rx), _Millis(millis)
+		L3Manager(rx_packet_function_t rx, get_time_ms_function_t millis) : _RxCallback(rx), _Millis(millis), _drivers{}
 		{
 
 		}
@@ -29,8 +29,11 @@ class L3Manager : public L3ManagerInterface
 			return;
 		}
 		
+		// dev — один бит маски (тип драйвера). Хранение по номеру бита: DASHBOARD (0x01) -> [0], SERVER (0x80) -> [7]
 		L3Driver *GetDriver(uint8_t dev)
 		{
+			if(dev == 0) return nullptr;	// __builtin_ctz(0) не определён
+
 			return _drivers[__builtin_ctz(dev)];
 		}
 
@@ -40,12 +43,9 @@ class L3Manager : public L3ManagerInterface
 			// Пришёл пакет
 			// В rx_len указана максимальная длина которую можно обработать. это НЕ длина пакета, это >= длина пакета. Но хорошо бы убедиться что это ещё и не < пакета.
 			
-			uint8_t fId = rx[0];
-			// Работа с rx
-			_RxCallback(driver, rx, rx_len);
 
-			// В конце необходимо вернуть фактическую длину пакета, которую вычислили базе fId.
-			return 6;
+			// Колбэк обязан вернуть фактическую длину сообщения, вычисленную по fId (0 — остаток не разбирать)
+			return _RxCallback(driver, rx, rx_len);
 		}
 
 		// Добавляем программный пакет на отправку
@@ -54,7 +54,8 @@ class L3Manager : public L3ManagerInterface
 			while(dev)
 			{
 				uint8_t bit = dev & -dev;
-				_drivers[bit]->AddPacket(data, length);
+				L3Driver *driver = GetDriver(bit);	// bit — значение бита, не индекс
+				if(driver != nullptr) driver->AddPacket(data, length);
 				dev &= ~bit;
 			}
 			
@@ -67,7 +68,8 @@ class L3Manager : public L3ManagerInterface
 			while(dev)
 			{
 				uint8_t bit = dev & -dev;
-				_drivers[bit]->Commit();
+				L3Driver *driver = GetDriver(bit);	// bit — значение бита, не индекс
+				if(driver != nullptr) driver->Commit();
 				dev &= ~bit;
 			}
 			
@@ -80,7 +82,8 @@ class L3Manager : public L3ManagerInterface
 			while(dev)
 			{
 				uint8_t bit = dev & -dev;
-				_drivers[bit]->Reset();
+				L3Driver *driver = GetDriver(bit);	// bit — значение бита, не индекс
+				if(driver != nullptr) driver->Reset();
 				dev &= ~bit;
 			}
 			

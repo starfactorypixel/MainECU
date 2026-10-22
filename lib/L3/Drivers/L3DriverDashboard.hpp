@@ -13,7 +13,10 @@ class L3DriverDashboard : public L3Driver
 		L3DriverDashboard()
 		{
 			_dev_type = DEVTYPE_DASHBOARD;
-			_state.beacon.interval = 5000;
+			_cfg.beacon_interval = 5000;
+			_cfg.idle = 1000;
+			_cfg.ping_interval = 1000;
+			_cfg.ping_retries = 3;
 
 			_tx_format = L3C::FORMAT_SIGN;
 			_packet_tx.CfgFormat(_tx_format);
@@ -26,10 +29,7 @@ class L3DriverDashboard : public L3Driver
 		{
 			auto &cfg = Config::body.security.dev_01;	// ИМЕННО ссылка: и epoch, и key должны указывать в Config
 
-			// Если Config сохраняет асинхронно, передайте второй параметр — функцию, которая
-			// синхронно сохраняет эпоху и возвращает результат, иначе инвариант
-			// "эпоха сохранена до первой отправки" не гарантируется.
-			_seq.Cfg(&cfg.epoch /*, &CommitEpoch*/);
+			_seq.Cfg(&cfg.epoch);						// эпоху Config сохраняет сам, асинхронно
 
 			_packet_tx.CfgKey(cfg.key, _dev_type, &_seq);
 			_packet_rx.CfgKey(cfg.key, _dev_type, &_seq);

@@ -98,10 +98,11 @@ class L3PacketTx final : private L3Packet
 		}
 
 		// Подписать/зашифровать (один раз) и вернуть готовый кадр. 0 — ошибка, см. GetError().
+		// beacon == true — номер берётся через L3PacketSeq::NextBeacon() (подтягивается к принятому).
 		// Повторный вызов отдаёт тот же кадр с тем же N
-		uint16_t GetPacketPtr(uint8_t *&data)
+		uint16_t GetPacketPtr(uint8_t *&data, bool beacon = false)
 		{
-			if(_sealed == false && _Seal() == false)
+			if(_sealed == false && _Seal(beacon) == false)
 				return 0;
 
 			data = (uint8_t *)&_packet;
@@ -111,7 +112,7 @@ class L3PacketTx final : private L3Packet
 
 	private:
 
-		bool _Seal()
+		bool _Seal(bool beacon)
 		{
 			const format_info_t &f = _Info();
 
@@ -123,7 +124,7 @@ class L3PacketTx final : private L3Packet
 				if(_seq == nullptr) return _SetError(L3C::ERROR_CFG_NO_SEQ);
 
 				uint64_t n;
-				L3C::error_t err = _seq->Next(n);
+				L3C::error_t err = beacon ? _seq->NextBeacon(n) : _seq->NextTx(n);
 				if(err != L3C::ERROR_NONE) return _SetError(err);
 
 				_IVWrite(n);
@@ -137,22 +138,14 @@ class L3PacketTx final : private L3Packet
 			return true;
 		}
 
-		// Раскладка IV: [epoch:24][instance:8][counter:32][random:32], little-endian
+		// Раскладка IV — L3C::IV_t: [epoch:24][instance:8][counter:32][random:32]
 		void _IVWrite(uint64_t n)
 		{
-			uint8_t *iv = _IV();
-			uint32_t epoch = (uint32_t)(n >> 32);
-			uint32_t counter = (uint32_t)n;
+			L3C::IV_t *iv = _IV();
 
-			iv[0] = (uint8_t)epoch;
-			iv[1] = (uint8_t)(epoch >> 8);
-			iv[2] = (uint8_t)(epoch >> 16);
-			iv[3] = _param.type;
-			iv[4] = (uint8_t)counter;
-			iv[5] = (uint8_t)(counter >> 8);
-			iv[6] = (uint8_t)(counter >> 16);
-			iv[7] = (uint8_t)(counter >> 24);
-			memcpy(&iv[8], _seq->Random(), 4);
+			iv->SetN(n);
+			iv->instance = _param.type;
+			memcpy(iv->random, _seq->Random(), sizeof(iv->random));
 
 			return;
 		}

@@ -21,6 +21,7 @@ class L3PacketRx final : private L3Packet
 			_timeout = 0;
 			_last_rx_time = 0;
 			_dropped = 0;
+			_valid = 0;
 			_ResetFrame();
 		}
 
@@ -154,6 +155,14 @@ class L3PacketRx final : private L3Packet
 			return _dropped;
 		}
 
+		// Счётчик принятых аутентифицированных пакетов (SIGN/ENCRYPT, прошедших все проверки),
+		// включая пустые. Только растёт. Драйвер по его изменению видит активность клиента.
+		// Пишет задача приёма, читает runtime: 32-битное выровненное чтение атомарно
+		uint32_t GetValidCount() const
+		{
+			return _valid;
+		}
+
 	private:
 
 		void _ResetFrame()
@@ -201,9 +210,9 @@ class L3PacketRx final : private L3Packet
 				if(_seq->IsStarted() == false) return _SetError(L3C::ERROR_SEQ_NOT_STARTED);
 
 				// Партнёр обязан инвертировать instance — этим разведены IV двух направлений
-				if(_IV()[3] != (uint8_t)~_param.type) return _SetError(L3C::ERROR_RX_IV_INSTANCE);
+				if(_IV()->instance != (uint8_t)~_param.type) return _SetError(L3C::ERROR_RX_IV_INSTANCE);
 
-				uint64_t n = _IVGetN();
+				uint64_t n = _IV()->GetN();
 				if(_seq->IsFresh(n) == false) return _SetError(L3C::ERROR_RX_IV_REPLAY);
 
 				int ret = _Gcm(false);
@@ -211,6 +220,7 @@ class L3PacketRx final : private L3Packet
 					return _SetError((ret == MBEDTLS_ERR_GCM_AUTH_FAILED) ? L3C::ERROR_RX_AUTH : L3C::ERROR_RX_CRYPTO);
 
 				_seq->Accept(n);	// только после успешной проверки тега
+				_valid = _valid + 1;	// не ++: инкремент volatile устарел в C++20
 			}
 
 			_param.error = L3C::ERROR_NONE;
@@ -233,6 +243,7 @@ class L3PacketRx final : private L3Packet
 		uint16_t _timeout;
 		uint8_t _allowed;
 		uint32_t _dropped;
+		volatile uint32_t _valid;
 
 		L3PacketPayload _payload;
 };

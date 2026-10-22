@@ -23,16 +23,22 @@ class L3Packet
 			uint8_t capacity;
 		};
 
-		// format — 2-битное поле (0..3), выход за таблицу невозможен.
+		// format — 3-битное поле (0..7), таблица на все 8 значений, выход за неё невозможен.
+		// capacity == 0 — формат зарезервирован. Новый формат с иной раскладкой payload потребует
+		// своей ветки в _AADLen()/_CryptLen()/_Gcm(), остальное берётся из этой таблицы.
 		// Таблица локальная: нет определения вне класса, безопасно для нескольких единиц трансляции
 		const format_info_t &_Info() const
 		{
-			static constexpr format_info_t table[4] =
+			static constexpr format_info_t table[L3C::FORMAT_COUNT] =
 			{
-				{0,  0,                                                 L3C::PACKET_PAYLOAD_RAW_LEN},	// RAW
-				{L3C::PACKET_IV_LEN, L3C::PACKET_IV_LEN + L3C::PACKET_TAG_LEN, L3C::PACKET_DATA_LEN_MAX},	// SIGN
-				{0,  0,                                                 0},								// RESERVED
-				{L3C::PACKET_IV_LEN, L3C::PACKET_IV_LEN + L3C::PACKET_TAG_LEN, L3C::PACKET_DATA_LEN_MAX},	// ENCRYPT
+				{0,  0,                                                 L3C::PACKET_PAYLOAD_RAW_LEN},	// 0 RAW
+				{L3C::PACKET_IV_LEN, L3C::PACKET_IV_LEN + L3C::PACKET_TAG_LEN, L3C::PACKET_DATA_LEN_MAX},	// 1 SIGN
+				{0,  0,                                                 0},								// 2 резерв
+				{L3C::PACKET_IV_LEN, L3C::PACKET_IV_LEN + L3C::PACKET_TAG_LEN, L3C::PACKET_DATA_LEN_MAX},	// 3 ENCRYPT
+				{0,  0,                                                 0},								// 4 резерв
+				{0,  0,                                                 0},								// 5 резерв
+				{0,  0,                                                 0},								// 6 резерв
+				{0,  0,                                                 0},								// 7 резерв
 			};
 
 			return table[_packet.format];
@@ -53,9 +59,9 @@ class L3Packet
 			return &_packet.payload[_Info().data_offset];
 		}
 
-		uint8_t *_IV()
+		L3C::IV_t *_IV()
 		{
-			return _packet.payload;
+			return (L3C::IV_t *)_packet.payload;
 		}
 
 		uint8_t *_Tag()
@@ -119,17 +125,6 @@ class L3Packet
 			return (_packet.format == L3C::FORMAT_ENCRYPT) ? _PayloadLength() : 0;
 		}
 
-		// Номер пакета N из IV (раскладка в L3PacketConsts.hpp)
-		uint64_t _IVGetN()
-		{
-			const uint8_t *iv = _IV();
-
-			uint32_t epoch = (uint32_t)iv[0] | ((uint32_t)iv[1] << 8) | ((uint32_t)iv[2] << 16);
-			uint32_t counter = (uint32_t)iv[4] | ((uint32_t)iv[5] << 8) | ((uint32_t)iv[6] << 16) | ((uint32_t)iv[7] << 24);
-
-			return ((uint64_t)epoch << 32) | counter;
-		}
-
 		// Подпись/шифрование (encrypt) или проверка/расшифровка (!encrypt) на месте.
 		// Возвращает код mbedtls, 0 — успех
 		int _Gcm(bool encrypt)
@@ -145,11 +140,11 @@ class L3Packet
 
 				if(encrypt)
 					ret = mbedtls_gcm_crypt_and_tag(&ctx, MBEDTLS_GCM_ENCRYPT, crypt_len,
-						_IV(), L3C::PACKET_IV_LEN, _AAD(), _AADLen(),
+						_IV()->raw, L3C::PACKET_IV_LEN, _AAD(), _AADLen(),
 						data, data, L3C::PACKET_TAG_LEN, _Tag());
 				else
 					ret = mbedtls_gcm_auth_decrypt(&ctx, crypt_len,
-						_IV(), L3C::PACKET_IV_LEN, _AAD(), _AADLen(),
+						_IV()->raw, L3C::PACKET_IV_LEN, _AAD(), _AADLen(),
 						_Tag(), L3C::PACKET_TAG_LEN, data, data);
 			}
 
@@ -170,7 +165,7 @@ class L3Packet
 		struct
 		{
 			const uint8_t *key;
-			uint8_t type;			// ESP: instance в IV, ожидаемый instance партнёра — его инверсия
+			uint8_t type;			// ESP: instance в IV, ожидаемый instance клиента — его инверсия
 			L3C::error_t error;
 		} _param;
 

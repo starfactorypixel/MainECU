@@ -5,29 +5,22 @@
 #include "L3ManagerInterface.hpp"
 #include "Packets/L3PacketRx.hpp"
 #include "Packets/L3PacketTx.hpp"
+#include "Packets/L3Fid.hpp"
 
+/*
+Канал связи с одним клиентом.
+
+Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, независимо от сеанса.
+
+Сеанс (только ESP знает, открыт ли он; состояние передаётся клиенту флагом в beacon):
+	- открывается первым принятым аутентифицированным пакетом клиента;
+	- пока пакеты клиента идут, пинги не отправляются;
+	- пауза _cfg.idle мс -> пинг, далее каждые _cfg.ping_interval мс, всего _cfg.ping_retries штук;
+	- любой валидный пакет клиента (в том числе ответ на пинг) сбрасывает отсчёт;
+	- нет ответа на последний пинг -> сеанс закрыт: L3PacketSeq::CloseSession() и OnSessionClose().
+*/
 class L3Driver : public L3DriverInterface
 {
-	
-	struct state_t
-	{
-		dev_state_t state;			// Состояние устройства
-		
-		struct
-		{
-			uint8_t retries;		// Остаток попыток получить ответ на пинг
-			uint32_t prevtime;		// Время последнего полученного пинга
-		} ping;
-
-		struct
-		{
-			uint16_t interval;		// Интервал генерация beacon пакета, мс
-			uint32_t prevtime;		// Время последней оправки beacon пакета, мс
-		} beacon;
-	};
-
-	
-
 	public:
 
 		L3Driver() = default;
@@ -45,6 +38,16 @@ class L3Driver : public L3DriverInterface
 		dev_type_t GetType()
 		{
 			return _dev_type;
+		}
+
+		dev_state_t GetState()
+		{
+			return _state.state;
+		}
+
+		bool IsSessionActive()
+		{
+			return _state.state == DEVSTATE_ACTIVE;
 		}
 
 		void AddPacket(const uint8_t *data, uint16_t length)
@@ -66,25 +69,21 @@ class L3Driver : public L3DriverInterface
 		{
 			if(_packet_tx.PayloadIsSet() == false) return;
 
-			uint8_t *data;
-			uint16_t length = _packet_tx.GetPacketPtr(data);
-			if(length > 0)
-				SendData(data, length);
-			else
-				DEBUG_LOG_TOPIC("L3New", "Commit error: %s\n", L3C::ErrorName(_packet_tx.GetError()));
-
-			_packet_tx.Clear();		// всегда: при ошибке пакет теряется, но очередь не блокируется, формат сохраняется
+			_Send(false);
 		}
 
+		// Сброс канала: настройки (_cfg) сохраняются, состояние и разбор приёма — нет.
+		// Открытый сеанс закрывается без OnSessionClose(): Reset вызывается и до Open()
 		void Reset()
 		{
-			uint16_t interval = _state.beacon.interval;		// memset не должен обнулять настройку
+			_seq.CloseSession();
+
 			memset(&_state, 0x00, sizeof(_state));
 			_state.state = DEVSTATE_IDLE;
-			_state.beacon.interval = interval;
 
 			_packet_tx.CfgFormat(_tx_format);
 			_packet_rx.Reset();
+			_state.rx_count = _packet_rx.GetValidCount();
 
 			return;
 		}
@@ -97,17 +96,32 @@ class L3Driver : public L3DriverInterface
 			return;
 		}
 
-		// Каким-то образом пришли несколько байт. Прерывание или рунтайм
-		void RxBytes(const uint8_t *rx, uint16_t rx_len/*, uint32_t rx_time*/)
+		// Каким-то образом пришли несколько байт (целый кадр). Прерывание или рунтайм
+		void RxBytes(const uint8_t *rx, uint16_t rx_len, uint32_t rx_time)
 		{
-			_packet_rx.PutPacketBytes(rx, rx_len, 0/*(esp_timer_get_time() / 1000ULL)*/);							// Провайдер времени.
+			_packet_rx.PutPacketBytes(rx, rx_len, rx_time);
+
+			return;
 		}
 
 		void Processing(uint32_t time)
 		{
-			// Постоянно проверяем наличие принятых пакетов из буфера. Вытащить из буфера и выполнить.
-			// Пока без буфера а 1 объект
+			// Активность клиента: счётчик валидных пакетов изменился
+			uint32_t count = _packet_rx.GetValidCount();
+			if(count != _state.rx_count)
+			{
+				_state.rx_count = count;
+				_state.rx_time = time;
+				_state.pings = 0;
 
+				if(_state.state != DEVSTATE_ACTIVE)
+				{
+					_state.state = DEVSTATE_ACTIVE;
+					OnSessionOpen();
+				}
+			}
+
+			// Принятые данные
 			while(_packet_rx.IsReady())
 			{
 				uint8_t *data;
@@ -115,68 +129,173 @@ class L3Driver : public L3DriverInterface
 				// _packet_rx.GetPayloadFormat() == FORMAT_RAW — данные не аутентифицированы
 				// (при политике по умолчанию RAW сюда не попадает)
 
-				uint16_t offset = 0;
-				while(offset < length)
-				{
-					uint16_t processed = _manager->RxPacket(this, data + offset, length - offset);
-					if(processed == 0) break;
-
-					offset += processed;
-				}
-
+				_Dispatch(data, length);
 				_packet_rx.PopPayload();
 			}
 
-			if(_state.beacon.interval > 0 && time - _state.beacon.prevtime > _state.beacon.interval)
+			if(_state.state == DEVSTATE_ACTIVE)
+				_CheckLink(time);
+
+			if(_cfg.beacon_interval > 0 && time - _state.beacon_time >= _cfg.beacon_interval)
 			{
-				_state.beacon.prevtime = time;
+				_state.beacon_time = time;
 				_SendBeacon();
 			}
-			
+
 			return;
 		}
 
 
 	protected:
-		
-		L3PacketSeq _seq;								// Общее для Rx и Tx состояние счётчиков линка
-		L3C::format_t _tx_format = L3C::FORMAT_SIGN;	// Формат исходящих по умолчанию (по умолчанию подписанный, не RAW)
+
+		// Настройки канала, задаются в конструкторе драйвера. Reset() их не трогает
+		struct cfg_t
+		{
+			uint16_t beacon_interval = 0;		// Интервал beacon, мс. 0 — beacon выключен
+			uint16_t idle = 1000;				// Пауза в пакетах клиента до первого пинга, мс
+			uint16_t ping_interval = 1000;		// Интервал между пингами, мс
+			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса
+		};
+
+		// Сеанс открыт: первый валидный пакет клиента после IDLE/TIMEOUT
+		virtual void OnSessionOpen() {}
+
+		// Сеанс закрыт по пингам. BT: разорвать соединение. UART/USB: ничего, достаточно состояния
+		virtual void OnSessionClose() {}
+
+		cfg_t _cfg;
+		L3PacketSeq _seq;								// Общее для Rx и Tx состояние счётчиков канала
+		L3C::format_t _tx_format = L3C::FORMAT_SIGN;	// Формат исходящих по умолчанию (подписанный, не RAW)
 
 		L3PacketRx _packet_rx;
 		L3PacketTx _packet_tx;
-	
 
-		L3ManagerInterface *_manager;
+		L3ManagerInterface *_manager = nullptr;
 
-		dev_type_t _dev_type;
-		state_t _state;
+		dev_type_t _dev_type = DEVTYPE_NONE;
 
 	private:
+
+		struct state_t
+		{
+			dev_state_t state;			// IDLE — сеанса не было, ACTIVE — открыт, TIMEOUT — закрыт по пингам
+			uint32_t rx_count;			// Последнее значение _packet_rx.GetValidCount()
+			uint32_t rx_time;			// Время последнего валидного пакета клиента, мс
+			uint32_t ping_time;			// Время последнего пинга, мс
+			uint8_t pings;				// Отправлено пингов без ответа
+			uint32_t beacon_time;		// Время последнего beacon, мс
+		};
+
+		void _Send(bool beacon)
+		{
+			uint8_t *data;
+			uint16_t length = _packet_tx.GetPacketPtr(data, beacon);
+			if(length > 0)
+				SendData(data, length);
+			else
+				DEBUG_LOG_TOPIC("L3New", "Send error: %s\n", L3C::ErrorName(_packet_tx.GetError()));
+
+			_packet_tx.Clear();		// всегда: при ошибке пакет теряется, но очередь не блокируется, формат сохраняется
+
+			return;
+		}
+
+		// Разбор DATA на сообщения. Транспортные fId обрабатываются здесь, остальные — в L3Manager
+		void _Dispatch(const uint8_t *data, uint16_t length)
+		{
+			uint16_t offset = 0;
+			while(offset < length)
+			{
+				const uint8_t *msg = data + offset;
+				uint16_t left = length - offset;
+				uint16_t processed;
+
+				switch(msg[0])
+				{
+					// Ответ клиента на пинг: активность уже учтена по счётчику валидных пакетов
+					case L3Fid::FID_PING:	processed = sizeof(L3Fid::ping_t); break;
+
+					// Beacon от клиента не ожидается: остаток DATA отбрасываем
+					case L3Fid::FID_BEACON:	processed = 0; break;
+
+					default:				processed = _manager->RxPacket(this, msg, left); break;
+				}
+
+				if(processed == 0 || processed > left) break;
+
+				offset += processed;
+			}
+
+			return;
+		}
+
+		void _CheckLink(uint32_t time)
+		{
+			if(_state.pings == 0)
+			{
+				if(time - _state.rx_time < _cfg.idle) return;
+			}
+			else
+			{
+				if(time - _state.ping_time < _cfg.ping_interval) return;
+
+				if(_state.pings >= _cfg.ping_retries)
+				{
+					_CloseSession();
+					return;
+				}
+			}
+
+			_state.pings++;
+			_state.ping_time = time;
+			_SendPing();
+
+			return;
+		}
+
+		void _CloseSession()
+		{
+			_seq.CloseSession();
+			_state.state = DEVSTATE_TIMEOUT;
+			_state.pings = 0;
+			OnSessionClose();
+
+			return;
+		}
+
+		void _SendPing()
+		{
+			const L3Fid::ping_t ping = {L3Fid::FID_PING};
+
+			Commit();	// накопленное уходит отдельно, пинг — своим пакетом
+			AddPacket((const uint8_t *)&ping, sizeof(ping));
+			Commit();
+
+			return;
+		}
 
 		void _SendBeacon()
 		{
 			Commit();	// сначала накопленное: beacon идёт через тот же объект и затёр бы его
 
 			const auto &cfg = Config::body.security;	// ссылка, не копия (в копию попадал бы ключ)
-			packet_beacon_t beacon = {};
+			L3Fid::beacon_t beacon = {};
+			beacon.fId = L3Fid::FID_BEACON;
+			beacon.interval = _cfg.beacon_interval;
+			beacon.flags = (_state.state == DEVSTATE_ACTIVE) ? L3Fid::BEACON_FLAG_SESSION : 0;
 			memcpy(beacon.sn, cfg.sn, sizeof(beacon.sn));
 			memcpy(beacon.name, cfg.name, sizeof(beacon.name));
+			beacon.length = (uint8_t)strnlen((const char *)beacon.name, sizeof(beacon.name));
 
-			// Beacon всегда SIGN: из его IV телефон берёт стартовые epoch/counter
+			// Beacon всегда SIGN: из его IV клиент берёт стартовые epoch/counter
 			_packet_tx.CfgFormat(L3C::FORMAT_SIGN);
-			_packet_tx.PutPayload((uint8_t *)&beacon, sizeof(beacon));
-			Commit();
+			_packet_tx.PutPayload((const uint8_t *)&beacon, sizeof(beacon));
+			_Send(true);
 
 			_packet_tx.CfgFormat(_tx_format);
 
 			return;
 		}
-		
-		structpack packet_beacon_t
-		{
-			uint8_t fId = 0x00;
-			uint8_t length;
-			uint8_t sn[8];
-			uint8_t name[32];
-		};
+
+		state_t _state = {};
 };

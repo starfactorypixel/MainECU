@@ -22,8 +22,7 @@ Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, незави�
 	- нет ответа на последний пинг -> сеанс закрыт (CLOSE_TIMEOUT): новый идентификатор, события.
 	  Все пакеты закрытого сеанса (в том числе недоставленные) перестают проходить проверку подписи,
 	  клиент видит новый идентификатор в следующем beacon и подключается заново;
-	- ping_retries == 0 -> пинги выключены, сеанс закрывается после idle мс тишины;
-	  idle == 0 -> сеанс сам не закрывается, только по сигналу транспорта (_TransportClosed, CLOSE_TRANSPORT).
+	- ping_interval == 0 -> пингов нет, сеанс закрывает только транспорт (_TransportClosed, CLOSE_TRANSPORT).
 */
 class L3Driver : public L3DriverInterface
 {
@@ -177,11 +176,9 @@ class L3Driver : public L3DriverInterface
 		struct cfg_t
 		{
 			uint16_t beacon_interval = 0;		// Интервал beacon, мс. 0 — beacon выключен
-			uint16_t idle = 1000;				// Пауза в пакетах клиента до первого пинга, мс.
-												// 0 — сеанс сам не закрывается (только _TransportClosed)
-			uint16_t ping_interval = 1000;		// Интервал между пингами, мс
-			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса.
-												// 0 — пинги выключены, сеанс закрывается после idle мс тишины
+			uint16_t idle = 1000;				// Пауза в пакетах клиента до первого пинга, мс
+			uint16_t ping_interval = 1000;		// Интервал между пингами, мс. 0 — пинги выключены
+			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса
 		};
 
 		// Формат канала. Вызывается один раз, в конструкторе драйвера
@@ -244,7 +241,7 @@ class L3Driver : public L3DriverInterface
 
 		struct state_t
 		{
-			dev_state_t state;			// IDLE — сеанса нет, ACTIVE — открыт, TIMEOUT — закрыт по тишине
+			dev_state_t state;			// IDLE — сеанса нет, ACTIVE — открыт, TIMEOUT — закрыт по пингам
 			uint32_t rx_count;			// Последнее значение _packet_rx.GetValidCount()
 			uint32_t reject_count;		// Последнее значение _packet_rx.GetRejectedCount()
 			uint32_t rx_time;			// Время последнего валидного пакета клиента, мс
@@ -305,16 +302,11 @@ class L3Driver : public L3DriverInterface
 
 		void _CheckLink(uint32_t time)
 		{
+			if(_cfg.ping_interval == 0) return;		// пинги выключены: сеанс закрывает только транспорт
+
 			if(_state.pings == 0)
 			{
-				if(_cfg.idle == 0) return;							// сеанс закрывает только транспорт
 				if(time - _state.rx_time < _cfg.idle) return;
-
-				if(_cfg.ping_retries == 0)							// пинги выключены: хватает тишины
-				{
-					_CloseSession(CLOSE_TIMEOUT);
-					return;
-				}
 			}
 			else
 			{

@@ -29,7 +29,7 @@ class L3DriverInterface
 		// Причина закрытия сеанса
 		enum close_reason_t : uint8_t
 		{
-			CLOSE_TIMEOUT = 1,					// Клиент замолчал: пинги без ответа или тишина дольше idle
+			CLOSE_TIMEOUT = 1,					// Пинги без ответа
 			CLOSE_TRANSPORT,					// Транспорт сообщил об обрыве (BT disconnect, TCP закрыт)
 		};
 		

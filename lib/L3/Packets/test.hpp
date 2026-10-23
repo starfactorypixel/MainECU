@@ -80,18 +80,32 @@ uint16_t L3Rx(L3Driver *driver, const uint8_t *rx, uint16_t rx_len)
 	uint8_t fId = rx[0];
 	switch(fId)
 	{
-		// Ping
-		case 0x01:
+		default:
 		{
-
+			break;
 		}
 	}
 
 	return fact_length;
 }
 
+void L3Open(L3Driver *driver)
+{
+	DEBUG_LOG_TOPIC("L3", "Session open, dev 0x%02X\n", driver->GetType());
+}
 
-L3Manager manager(&L3Rx, &MyMillis);
+void L3Close(L3Driver *driver, L3DriverInterface::close_reason_t reason)
+{
+	DEBUG_LOG_TOPIC("L3", "Session close, dev 0x%02X, reason %u\n", driver->GetType(), reason);
+}
+
+void L3Error(L3Driver *driver, L3C::error_t error)
+{
+	DEBUG_LOG_TOPIC("L3", "Error, dev 0x%02X: %s\n", driver->GetType(), L3C::ErrorName(error));
+}
+
+const L3Manager::callbacks_t l3_callbacks = {&L3Open, &L3Close, &L3Rx, &L3Error};
+L3Manager manager(l3_callbacks, &MyMillis);
 L3DriverDashboard dash;
 
 

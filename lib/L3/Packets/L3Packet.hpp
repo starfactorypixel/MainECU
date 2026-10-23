@@ -127,7 +127,7 @@ class L3Packet
 
 		// Подпись/шифрование (encrypt) или проверка/расшифровка (!encrypt) на месте.
 		// bind — PACKET_AAD_BIND_LEN байт, дописываемых в конец AAD (идентификатор сеанса для пакетов клиента), или nullptr.
-		// Контекст GCM готовится один раз в CfgKey(): расписание ключа AES и H не пересчитываются
+		// Контекст GCM готовится один раз в _CfgGcm() (из CfgKey()): расписание ключа AES и H не пересчитываются
 		// на каждый пакет. Повторное использование контекста допустимо: каждый вызов mbedtls
 		// начинает новое сообщение со своим IV. Rx и Tx — разные объекты, контексты не делятся между задачами.
 		// Возвращает код mbedtls, 0 — успех
@@ -158,6 +158,16 @@ class L3Packet
 			return mbedtls_gcm_auth_decrypt(&_gcm, crypt_len,
 				_IV()->raw, L3C::PACKET_IV_LEN, aad, aad_len,
 				_Tag(), L3C::PACKET_TAG_LEN, data, data);
+		}
+
+		// Только GCM: расписание ключа AES и H считаются здесь один раз, а не на каждый пакет
+		void _CfgGcm()
+		{
+			mbedtls_gcm_free(&_gcm);
+			mbedtls_gcm_init(&_gcm);
+			_gcm_ready = (_param.key != nullptr) && (mbedtls_gcm_setkey(&_gcm, MBEDTLS_CIPHER_ID_AES, _param.key, 256) == 0);
+
+			return;
 		}
 
 		bool _SetError(L3C::error_t error)
@@ -201,17 +211,17 @@ class L3Packet
 		L3Packet(const L3Packet &) = delete;
 		L3Packet &operator=(const L3Packet &) = delete;
 
-		// key — 32 байта. Ключ копируется в контекст GCM здесь, один раз: если ключ в Config
-		// поменялся (новое сопряжение), CfgKey() нужно вызвать снова, иначе работа продолжится со старым
+		// Параметры защиты канала, от шифра не зависят: key — 32 байта (указатель в Config, хранится),
+		// type — instance в IV, seq — счётчики и идентификатор сеанса. Затем готовятся шифры всех форматов.
+		// Шифры копируют ключ в свои контексты: если ключ в Config поменялся (новое сопряжение), CfgKey()
+		// нужно вызвать снова. Вызывать при остановленном приёме: задача приёма работает с теми же контекстами
 		void CfgKey(const uint8_t key[32], uint8_t type, L3PacketSeq *seq)
 		{
 			_param.key = key;
 			_param.type = type;
 			_seq = seq;
 
-			mbedtls_gcm_free(&_gcm);
-			mbedtls_gcm_init(&_gcm);
-			_gcm_ready = (key != nullptr) && (mbedtls_gcm_setkey(&_gcm, MBEDTLS_CIPHER_ID_AES, key, 256) == 0);
+			_CfgGcm();		// SIGN, ENCRYPT. Новый формат со своим шифром — свой _CfgXxx() здесь
 
 			return;
 		}

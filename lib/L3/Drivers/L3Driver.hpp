@@ -19,9 +19,11 @@ Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, незави�
 	- пока пакеты клиента идут, пинги не отправляются;
 	- пауза _cfg.idle мс -> пинг, далее каждые _cfg.ping_interval мс, всего _cfg.ping_retries штук;
 	- любой валидный пакет клиента (в том числе ответ на пинг) сбрасывает отсчёт;
-	- нет ответа на последний пинг -> сеанс закрыт: новый идентификатор и OnSessionClose().
+	- нет ответа на последний пинг -> сеанс закрыт (CLOSE_TIMEOUT): новый идентификатор, события.
 	  Все пакеты закрытого сеанса (в том числе недоставленные) перестают проходить проверку подписи,
-	  клиент видит новый идентификатор в следующем beacon и подключается заново.
+	  клиент видит новый идентификатор в следующем beacon и подключается заново;
+	- ping_retries == 0 -> пинги выключены, сеанс закрывается после idle мс тишины;
+	  idle == 0 -> сеанс сам не закрывается, только по сигналу транспорта (_TransportClosed, CLOSE_TRANSPORT).
 */
 class L3Driver : public L3DriverInterface
 {
@@ -66,7 +68,7 @@ class L3Driver : public L3DriverInterface
 			}
 
 			// ERROR_TX_DATA_TOO_BIG и прочее: данные отброшены
-			DEBUG_LOG_TOPIC("L3New", "AddPacket error: %s\n", L3C::ErrorName(_packet_tx.GetError()));
+			_Error(_packet_tx.GetError());
 		}
 
 		void Commit()
@@ -77,17 +79,19 @@ class L3Driver : public L3DriverInterface
 		}
 
 		// Сброс канала: настройки (_cfg) сохраняются, состояние и разбор приёма — нет.
-		// Открытый сеанс закрывается без OnSessionClose(): Reset вызывается и до Open()
+		// Открытый сеанс закрывается без событий: Reset вызывается и до Open(), и самим приложением
 		void Reset()
 		{
 			_seq.NewSession();
 
 			memset(&_state, 0x00, sizeof(_state));
 			_state.state = DEVSTATE_IDLE;
+			_transport_closed = false;
 
 			_packet_tx.Clear();		// недособранный исходящий пакет выбрасывается, формат канала сохраняется
 			_packet_rx.Reset();
 			_state.rx_count = _packet_rx.GetValidCount();
+			_state.reject_count = _packet_rx.GetRejectedCount();
 
 			return;
 		}
@@ -110,6 +114,15 @@ class L3Driver : public L3DriverInterface
 
 		void Processing(uint32_t time)
 		{
+			// Ошибки приёма: задача приёма только считает, сообщаем здесь. Между двумя вызовами
+			// могло быть несколько — сообщается последняя
+			uint32_t rejects = _packet_rx.GetRejectedCount();
+			if(rejects != _state.reject_count)
+			{
+				_state.reject_count = rejects;
+				_Error(_packet_rx.GetLastReject());
+			}
+
 			// Активность клиента: счётчик валидных пакетов изменился
 			uint32_t count = _packet_rx.GetValidCount();
 			if(count != _state.rx_count)
@@ -122,6 +135,7 @@ class L3Driver : public L3DriverInterface
 				{
 					_state.state = DEVSTATE_ACTIVE;
 					OnSessionOpen();
+					if(_manager != nullptr) _manager->SessionOpen(this);
 				}
 			}
 
@@ -134,6 +148,14 @@ class L3Driver : public L3DriverInterface
 
 				_Dispatch(data, length);
 				_packet_rx.PopPayload();
+			}
+
+			// Обрыв от транспорта — после приёма: данные, пришедшие до обрыва, уже отданы
+			if(_transport_closed)
+			{
+				_transport_closed = false;
+				if(_state.state == DEVSTATE_ACTIVE)
+					_CloseSession(CLOSE_TRANSPORT);
 			}
 
 			if(_state.state == DEVSTATE_ACTIVE)
@@ -155,9 +177,11 @@ class L3Driver : public L3DriverInterface
 		struct cfg_t
 		{
 			uint16_t beacon_interval = 0;		// Интервал beacon, мс. 0 — beacon выключен
-			uint16_t idle = 1000;				// Пауза в пакетах клиента до первого пинга, мс
+			uint16_t idle = 1000;				// Пауза в пакетах клиента до первого пинга, мс.
+												// 0 — сеанс сам не закрывается (только _TransportClosed)
 			uint16_t ping_interval = 1000;		// Интервал между пингами, мс
-			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса
+			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса.
+												// 0 — пинги выключены, сеанс закрывается после idle мс тишины
 		};
 
 		// Формат канала. Вызывается один раз, в конструкторе драйвера
@@ -170,11 +194,38 @@ class L3Driver : public L3DriverInterface
 			return;
 		}
 
+		// Протокольная часть Open(): ключ, счётчики, запуск. Транспортную часть драйвер делает сам.
+		// key и epoch — указатели в Config (эпоху Config сохраняет сам, асинхронно).
+		// key == nullptr — канал без защиты (RAW, beacon выключен): счётчики не запускаются.
+		// Ошибка уходит и в менеджер (Error), и в результат
+		L3C::error_t _OpenChannel(const uint8_t *key, uint32_t *epoch)
+		{
+			_packet_tx.CfgKey(key, _dev_type, &_seq);
+			_packet_rx.CfgKey(key, _dev_type, &_seq);
+
+			if(key == nullptr) return L3C::ERROR_NONE;
+
+			_seq.Cfg(epoch);
+			L3C::error_t err = _seq.Start();
+			if(err != L3C::ERROR_NONE) _Error(err);	// подписанные пакеты отправляться и приниматься не будут
+
+			return err;
+		}
+
+		// Транспорт сообщил об обрыве (BT disconnect, TCP закрыт). Можно вызывать из любого контекста:
+		// здесь только флаг, сеанс закроется в ближайшем Processing() (CLOSE_TRANSPORT)
+		void _TransportClosed()
+		{
+			_transport_closed = true;
+
+			return;
+		}
+
 		// Сеанс открыт: первый валидный пакет клиента после IDLE/TIMEOUT
 		virtual void OnSessionOpen() {}
 
-		// Сеанс закрыт по пингам. BT: разорвать соединение. UART/USB: ничего, достаточно состояния
-		virtual void OnSessionClose() {}
+		// Сеанс закрыт. BT по CLOSE_TIMEOUT: разорвать соединение. UART/USB: ничего, достаточно состояния
+		virtual void OnSessionClose(close_reason_t reason) { (void)reason; }
 
 		cfg_t _cfg;
 		L3PacketSeq _seq;								// Общее для Rx и Tx состояние счётчиков канала
@@ -193,13 +244,21 @@ class L3Driver : public L3DriverInterface
 
 		struct state_t
 		{
-			dev_state_t state;			// IDLE — сеанса не было, ACTIVE — открыт, TIMEOUT — закрыт по пингам
+			dev_state_t state;			// IDLE — сеанса нет, ACTIVE — открыт, TIMEOUT — закрыт по тишине
 			uint32_t rx_count;			// Последнее значение _packet_rx.GetValidCount()
+			uint32_t reject_count;		// Последнее значение _packet_rx.GetRejectedCount()
 			uint32_t rx_time;			// Время последнего валидного пакета клиента, мс
 			uint32_t ping_time;			// Время последнего пинга, мс
 			uint8_t pings;				// Отправлено пингов без ответа
 			uint32_t beacon_time;		// Время последнего beacon, мс
 		};
+
+		void _Error(L3C::error_t error)
+		{
+			if(_manager != nullptr) _manager->Error(this, error);
+
+			return;
+		}
 
 		void _Send()
 		{
@@ -208,7 +267,7 @@ class L3Driver : public L3DriverInterface
 			if(length > 0)
 				SendData(data, length);
 			else
-				DEBUG_LOG_TOPIC("L3New", "Send error: %s\n", L3C::ErrorName(_packet_tx.GetError()));
+				_Error(_packet_tx.GetError());
 
 			_packet_tx.Clear();		// всегда: при ошибке пакет теряется, но очередь не блокируется, формат сохраняется
 
@@ -248,7 +307,14 @@ class L3Driver : public L3DriverInterface
 		{
 			if(_state.pings == 0)
 			{
+				if(_cfg.idle == 0) return;							// сеанс закрывает только транспорт
 				if(time - _state.rx_time < _cfg.idle) return;
+
+				if(_cfg.ping_retries == 0)							// пинги выключены: хватает тишины
+				{
+					_CloseSession(CLOSE_TIMEOUT);
+					return;
+				}
 			}
 			else
 			{
@@ -256,7 +322,7 @@ class L3Driver : public L3DriverInterface
 
 				if(_state.pings >= _cfg.ping_retries)
 				{
-					_CloseSession();
+					_CloseSession(CLOSE_TIMEOUT);
 					return;
 				}
 			}
@@ -268,12 +334,14 @@ class L3Driver : public L3DriverInterface
 			return;
 		}
 
-		void _CloseSession()
+		void _CloseSession(close_reason_t reason)
 		{
 			_seq.NewSession();
-			_state.state = DEVSTATE_TIMEOUT;
+			_state.state = (reason == CLOSE_TIMEOUT) ? DEVSTATE_TIMEOUT : DEVSTATE_IDLE;
 			_state.pings = 0;
-			OnSessionClose();
+
+			OnSessionClose(reason);
+			if(_manager != nullptr) _manager->SessionClose(this, reason);
 
 			return;
 		}
@@ -316,4 +384,5 @@ class L3Driver : public L3DriverInterface
 		}
 
 		state_t _state = {};
+		volatile bool _transport_closed = false;	// пишет транспорт (любой контекст), читает Processing()
 };

@@ -27,17 +27,8 @@ class L3DriverDashboard : public L3Driver
 		virtual void Open() override
 		{
 			auto &cfg = Config::body.security.dev_01;	// ИМЕННО ссылка: и epoch, и key должны указывать в Config
+			_OpenChannel(cfg.key, &cfg.epoch);			// ошибка уйдёт в колбэк error
 
-			_seq.Cfg(&cfg.epoch);						// эпоху Config сохраняет сам, асинхронно
-
-			_packet_tx.CfgKey(cfg.key, _dev_type, &_seq);
-			_packet_rx.CfgKey(cfg.key, _dev_type, &_seq);
-
-			L3C::error_t err = _seq.Start();
-			if(err != L3C::ERROR_NONE)
-				DEBUG_LOG_TOPIC("L3New", "Seq start error: %s\n", L3C::ErrorName(err));	// подписанные пакеты отправляться не будут
-			
-			
 			const int uart_buffer_size = (1024 * 2);
 			
 			uart_config_t uart_config = 

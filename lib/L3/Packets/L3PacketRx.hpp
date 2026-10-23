@@ -22,6 +22,8 @@ class L3PacketRx final : private L3Packet
 			_last_rx_time = 0;
 			_dropped = 0;
 			_valid = 0;
+			_rejected = 0;
+			_last_reject = L3C::ERROR_NONE;
 			_ResetFrame();
 		}
 
@@ -56,8 +58,8 @@ class L3PacketRx final : private L3Packet
 		{
 			_CheckTimeout(time);
 
-			if(length > L3C::PACKET_LEN_MAX) return _SetError(L3C::ERROR_RX_FRAME_TOO_LONG);
-			if(length < L3C::PACKET_LEN_MIN) return _SetError(L3C::ERROR_RX_FRAME_TOO_SHORT);
+			if(length > L3C::PACKET_LEN_MAX) return _Reject(L3C::ERROR_RX_FRAME_TOO_LONG);
+			if(length < L3C::PACKET_LEN_MIN) return _Reject(L3C::ERROR_RX_FRAME_TOO_SHORT);
 
 			memcpy(&_packet, data, length);
 			_put_idx = length;
@@ -88,7 +90,7 @@ class L3PacketRx final : private L3Packet
 				if(_packet.payload_len > L3C::PACKET_PAYLOAD_RAW_LEN)
 				{
 					_ResetFrame();
-					return _SetError(L3C::ERROR_RX_PAYLOAD_LEN_MAX);
+					return _Reject(L3C::ERROR_RX_PAYLOAD_LEN_MAX);
 				}
 
 				_frame_len = _PacketLength() + L3C::PACKET_CRC_LEN;		// не больше PACKET_LEN_MAX
@@ -174,6 +176,7 @@ class L3PacketRx final : private L3Packet
 						if(_packet.payload_len > L3C::PACKET_PAYLOAD_RAW_LEN)
 						{
 							rejected = L3C::ERROR_RX_PAYLOAD_LEN_MAX;
+							_Reject(rejected);
 							rescan = true;
 						}
 						else
@@ -237,8 +240,8 @@ class L3PacketRx final : private L3Packet
 		{
 			_CheckTimeout(time);
 
-			if(length > L3C::PACKET_LEN_MAX) return _SetError(L3C::ERROR_RX_FRAME_TOO_LONG);
-			if(length < L3C::PACKET_LEN_MIN) return _SetError(L3C::ERROR_RX_FRAME_TOO_SHORT);
+			if(length > L3C::PACKET_LEN_MAX) return _Reject(L3C::ERROR_RX_FRAME_TOO_LONG);
+			if(length < L3C::PACKET_LEN_MIN) return _Reject(L3C::ERROR_RX_FRAME_TOO_SHORT);
 
 			data = (uint8_t *)&_packet;
 
@@ -285,7 +288,28 @@ class L3PacketRx final : private L3Packet
 			return _valid;
 		}
 
+		// Счётчик отклонённых кадров и ошибка последнего из них. Считаются кадры, а не мусор между ними:
+		// ошибка сигнатуры при побайтовом приёме не считается. Пишет задача приёма, читает runtime.
+		// Пара читается не атомарно: при одновременной записи ошибка может относиться к предыдущему кадру
+		uint32_t GetRejectedCount() const
+		{
+			return _rejected;
+		}
+
+		L3C::error_t GetLastReject() const
+		{
+			return _last_reject;
+		}
+
 	private:
+
+		bool _Reject(L3C::error_t error)
+		{
+			_last_reject = error;
+			_rejected = _rejected + 1;		// не ++: инкремент volatile устарел в C++20
+
+			return _SetError(error);
+		}
 
 		void _ResetFrame()
 		{
@@ -307,41 +331,41 @@ class L3PacketRx final : private L3Packet
 
 		bool _Parse()
 		{
-			if(_put_idx < L3C::PACKET_LEN_MIN) return _SetError(L3C::ERROR_RX_FRAME_TOO_SHORT);
-			if(_packet.head[0] != L3C::PACKET_HEAD_0 || _packet.head[1] != L3C::PACKET_HEAD_1) return _SetError(L3C::ERROR_RX_HEAD);
-			if(_packet.payload_len > L3C::PACKET_PAYLOAD_RAW_LEN) return _SetError(L3C::ERROR_RX_PAYLOAD_LEN_MAX);
-			if(_put_idx != _PacketLength() + L3C::PACKET_CRC_LEN) return _SetError(L3C::ERROR_RX_LEN_MISMATCH);
+			if(_put_idx < L3C::PACKET_LEN_MIN) return _Reject(L3C::ERROR_RX_FRAME_TOO_SHORT);
+			if(_packet.head[0] != L3C::PACKET_HEAD_0 || _packet.head[1] != L3C::PACKET_HEAD_1) return _Reject(L3C::ERROR_RX_HEAD);
+			if(_packet.payload_len > L3C::PACKET_PAYLOAD_RAW_LEN) return _Reject(L3C::ERROR_RX_PAYLOAD_LEN_MAX);
+			if(_put_idx != _PacketLength() + L3C::PACKET_CRC_LEN) return _Reject(L3C::ERROR_RX_LEN_MISMATCH);
 
 			// CRC — дешёвый фильтр до крипто, не защита от подделки
-			if(_ReadCRC() != _ComputeCRC()) return _SetError(L3C::ERROR_RX_CRC);
+			if(_ReadCRC() != _ComputeCRC()) return _Reject(L3C::ERROR_RX_CRC);
 
-			if(_packet.version != L3C::PACKET_VERSION) return _SetError(L3C::ERROR_RX_VERSION);
-			if(_packet.direction != L3C::DIRECTION_TO) return _SetError(L3C::ERROR_RX_DIRECTION);
+			if(_packet.version != L3C::PACKET_VERSION) return _Reject(L3C::ERROR_RX_VERSION);
+			if(_packet.direction != L3C::DIRECTION_TO) return _Reject(L3C::ERROR_RX_DIRECTION);
 
 			const format_info_t &f = _Info();
 
-			if(f.capacity == 0) return _SetError(L3C::ERROR_RX_FORMAT_RESERVED);
-			if(_packet.format != _format) return _SetError(L3C::ERROR_RX_FORMAT_DENIED);
-			if(_packet.payload_len < f.overhead) return _SetError(L3C::ERROR_RX_PAYLOAD_LEN_MIN);
-			if(_PayloadLength() > f.capacity) return _SetError(L3C::ERROR_RX_DATA_LEN);
+			if(f.capacity == 0) return _Reject(L3C::ERROR_RX_FORMAT_RESERVED);
+			if(_packet.format != _format) return _Reject(L3C::ERROR_RX_FORMAT_DENIED);
+			if(_packet.payload_len < f.overhead) return _Reject(L3C::ERROR_RX_PAYLOAD_LEN_MIN);
+			if(_PayloadLength() > f.capacity) return _Reject(L3C::ERROR_RX_DATA_LEN);
 
 			if(f.overhead)		// SIGN / ENCRYPT
 			{
-				if(_param.key == nullptr) return _SetError(L3C::ERROR_CFG_NO_KEY);
-				if(_seq == nullptr) return _SetError(L3C::ERROR_CFG_NO_SEQ);
-				if(_seq->IsStarted() == false) return _SetError(L3C::ERROR_SEQ_NOT_STARTED);
+				if(_param.key == nullptr) return _Reject(L3C::ERROR_CFG_NO_KEY);
+				if(_seq == nullptr) return _Reject(L3C::ERROR_CFG_NO_SEQ);
+				if(_seq->IsStarted() == false) return _Reject(L3C::ERROR_SEQ_NOT_STARTED);
 
 				// Партнёр обязан инвертировать instance — этим разведены IV двух направлений
-				if(_IV()->instance != (uint8_t)~_param.type) return _SetError(L3C::ERROR_RX_IV_INSTANCE);
+				if(_IV()->instance != (uint8_t)~_param.type) return _Reject(L3C::ERROR_RX_IV_INSTANCE);
 
 				uint64_t n = _IV()->GetN();
-				if(_seq->IsFresh(n) == false) return _SetError(L3C::ERROR_RX_IV_REPLAY);
+				if(_seq->IsFresh(n) == false) return _Reject(L3C::ERROR_RX_IV_REPLAY);
 
 				uint8_t session[L3C::PACKET_AAD_BIND_LEN];
 				_seq->Session(session);
 				int ret = _Gcm(false, session);	// клиент подписал и идентификатор текущего сеанса
 				if(ret != 0)
-					return _SetError((ret == MBEDTLS_ERR_GCM_AUTH_FAILED) ? L3C::ERROR_RX_AUTH : L3C::ERROR_RX_CRYPTO);
+					return _Reject((ret == MBEDTLS_ERR_GCM_AUTH_FAILED) ? L3C::ERROR_RX_AUTH : L3C::ERROR_RX_CRYPTO);
 
 				_seq->Accept(n);	// только после успешной проверки тега
 				_valid = _valid + 1;	// не ++: инкремент volatile устарел в C++20
@@ -355,7 +379,7 @@ class L3PacketRx final : private L3Packet
 			if(_payload.Add(_PayloadData(), length) == false)
 			{
 				_dropped = _dropped + 1;
-				return _SetError(L3C::ERROR_RX_QUEUE_FULL);
+				return _Reject(L3C::ERROR_RX_QUEUE_FULL);
 			}
 
 			return true;
@@ -368,6 +392,8 @@ class L3PacketRx final : private L3Packet
 		L3C::format_t _format;		// формат канала: только он принимается
 		volatile uint32_t _dropped;
 		volatile uint32_t _valid;
+		volatile uint32_t _rejected;
+		volatile L3C::error_t _last_reject;
 
 		L3PacketPayload _payload;
 };

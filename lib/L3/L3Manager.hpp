@@ -6,14 +6,31 @@
 class L3Manager : public L3ManagerInterface
 {
 	using get_time_ms_function_t = uint32_t (*)();
-	using rx_packet_function_t = uint16_t (*)(L3Driver *driver, const uint8_t *rx, uint16_t rx_len);
-	
+
 	public:
+
+		// Колбэки приложения. Вызываются только в runtime: из Processing(), а error ещё из AddPacket()/Commit()
+		// (ошибка отправки) и AddDriver() (ошибка запуска). Из задачи приёма — никогда. Любой может быть nullptr
+		struct callbacks_t
+		{
+			// Сеанс открыт: первый валидный пакет клиента
+			void (*open)(L3Driver *driver);
+
+			// Сеанс закрыт: клиент замолчал (CLOSE_TIMEOUT) или транспорт сообщил об обрыве (CLOSE_TRANSPORT)
+			void (*close)(L3Driver *driver, L3DriverInterface::close_reason_t reason);
+
+			// Сообщение приложения (fId не 0x00/0x01). rx_len — сколько осталось в DATA, не длина сообщения.
+			// Вернуть фактическую длину сообщения по fId, 0 — остаток не разбирать
+			uint16_t (*rx)(L3Driver *driver, const uint8_t *rx, uint16_t rx_len);
+
+			// Ошибка канала: отклонённый кадр (L3C::ERROR_RX_*), ошибка отправки (ERROR_TX_*), запуска (ERROR_SEQ_*)
+			void (*error)(L3Driver *driver, L3C::error_t error);
+		};
 	
 		L3Manager() = delete;
 		L3Manager(const L3Manager &) = delete;
 		L3Manager &operator=(const L3Manager &) = delete;
-		L3Manager(rx_packet_function_t rx, get_time_ms_function_t millis) : _RxCallback(rx), _Millis(millis), _drivers{}
+		L3Manager(const callbacks_t &callbacks, get_time_ms_function_t millis) : _callbacks(callbacks), _Millis(millis), _drivers{}
 		{
 
 		}
@@ -37,15 +54,27 @@ class L3Manager : public L3ManagerInterface
 			return _drivers[__builtin_ctz(dev)];
 		}
 
-		// Метод вызывается когда пришёл готовый пакет.
+		// Транспортное сообщение fId разобрано драйвером, сюда приходят только сообщения приложения
 		virtual uint16_t RxPacket(L3Driver *driver, const uint8_t *rx, uint16_t rx_len) override
 		{
-			// Пришёл пакет
-			// В rx_len указана максимальная длина которую можно обработать. это НЕ длина пакета, это >= длина пакета. Но хорошо бы убедиться что это ещё и не < пакета.
-			
+			if(_callbacks.rx == nullptr) return 0;
 
-			// Колбэк обязан вернуть фактическую длину сообщения, вычисленную по fId (0 — остаток не разбирать)
-			return _RxCallback(driver, rx, rx_len);
+			return _callbacks.rx(driver, rx, rx_len);
+		}
+
+		virtual void SessionOpen(L3Driver *driver) override
+		{
+			if(_callbacks.open != nullptr) _callbacks.open(driver);
+		}
+
+		virtual void SessionClose(L3Driver *driver, L3DriverInterface::close_reason_t reason) override
+		{
+			if(_callbacks.close != nullptr) _callbacks.close(driver, reason);
+		}
+
+		virtual void Error(L3Driver *driver, L3C::error_t error) override
+		{
+			if(_callbacks.error != nullptr) _callbacks.error(driver, error);
 		}
 
 		// Добавляем программный пакет на отправку
@@ -105,7 +134,7 @@ class L3Manager : public L3ManagerInterface
 
 	private:
 		
-		rx_packet_function_t _RxCallback;
+		callbacks_t _callbacks;
 		get_time_ms_function_t _Millis;
 
 		L3Driver *_drivers[8];

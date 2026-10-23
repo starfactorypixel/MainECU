@@ -26,6 +26,13 @@ class L3DriverInterface
 			DEVSTATE_AUTHERR,					// Устройство провалило проверку авторизации или подписи
 		};
 		
+		// Причина закрытия сеанса
+		enum close_reason_t : uint8_t
+		{
+			CLOSE_TIMEOUT = 1,					// Клиент замолчал: пинги без ответа или тишина дольше idle
+			CLOSE_TRANSPORT,					// Транспорт сообщил об обрыве (BT disconnect, TCP закрыт)
+		};
+		
 		virtual void Open() = 0;
 		virtual void SendData(const uint8_t *data, uint16_t length) = 0;
 		

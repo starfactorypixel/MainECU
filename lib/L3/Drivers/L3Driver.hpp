@@ -55,26 +55,30 @@ class L3Driver : public L3DriverInterface
 			return _state.state == DEVSTATE_ACTIVE;
 		}
 
-		void AddPacket(const uint8_t *data, uint16_t length)
+		// Данные приложения. Без открытого сеанса отбрасываются: false
+		bool AddPacket(const uint8_t *data, uint16_t length)
 		{
-			if(_packet_tx.AddPayload(data, length)) return;
+			if(IsSessionActive() == false) return false;
 
-			// Нет места в текущем пакете: отправляем накопленное и пробуем в пустой
-			if(_packet_tx.GetError() == L3C::ERROR_TX_NO_SPACE)
-			{
-				Commit();
-				if(_packet_tx.AddPayload(data, length)) return;
-			}
-
-			// ERROR_TX_DATA_TOO_BIG и прочее: данные отброшены
-			_Error(_packet_tx.GetError());
+			return _AddPacket(data, length);
 		}
 
+		// Отправить накопленное. Без открытого сеанса ничего не делает
 		void Commit()
 		{
-			if(_packet_tx.PayloadIsSet() == false) return;
+			if(IsSessionActive() == false) return;
 
-			_Send();
+			_Commit();
+		}
+
+		// AddPacket + Commit
+		bool AddPacketCommit(const uint8_t *data, uint16_t length)
+		{
+			if(AddPacket(data, length) == false) return false;
+
+			_Commit();
+
+			return true;
 		}
 
 		// Сброс канала: настройки (_cfg) сохраняются, состояние и разбор приёма — нет.
@@ -257,6 +261,31 @@ class L3Driver : public L3DriverInterface
 			return;
 		}
 
+		// Без проверки сеанса: для своих сообщений драйвера (пинг) и приложения через AddPacket()
+		bool _AddPacket(const uint8_t *data, uint16_t length)
+		{
+			if(_packet_tx.AddPayload(data, length)) return true;
+
+			// Нет места в текущем пакете: отправляем накопленное и пробуем в пустой
+			if(_packet_tx.GetError() == L3C::ERROR_TX_NO_SPACE)
+			{
+				_Commit();
+				if(_packet_tx.AddPayload(data, length)) return true;
+			}
+
+			// ERROR_TX_DATA_TOO_BIG и прочее: данные отброшены
+			_Error(_packet_tx.GetError());
+
+			return false;
+		}
+
+		void _Commit()
+		{
+			if(_packet_tx.PayloadIsSet() == false) return;
+
+			_Send();
+		}
+
 		void _Send()
 		{
 			uint8_t *data;
@@ -331,6 +360,7 @@ class L3Driver : public L3DriverInterface
 			_seq.NewSession();
 			_state.state = (reason == CLOSE_TIMEOUT) ? DEVSTATE_TIMEOUT : DEVSTATE_IDLE;
 			_state.pings = 0;
+			_packet_tx.Clear();		// недоотправленное в закрытом сеансе не должно уйти в следующем
 
 			OnSessionClose(reason);
 			if(_manager != nullptr) _manager->SessionClose(this, reason);
@@ -342,16 +372,15 @@ class L3Driver : public L3DriverInterface
 		{
 			const L3Fid::ping_t ping = {L3Fid::FID_PING};
 
-			Commit();	// накопленное уходит отдельно, пинг — своим пакетом
-			AddPacket((const uint8_t *)&ping, sizeof(ping));
-			Commit();
+			_AddPacket((const uint8_t *)&ping, sizeof(ping));	// вместе с накопленными данными, если влезает
+			_Commit();
 
 			return;
 		}
 
 		void _SendBeacon()
 		{
-			Commit();	// сначала накопленное: beacon идёт через тот же объект и затёр бы его
+			_Commit();	// сначала накопленное: beacon идёт через тот же объект и затёр бы его
 
 			const auto &cfg = Config::body.security;	// ссылка, не копия (в копию попадал бы ключ)
 			L3Fid::beacon_t beacon = {};

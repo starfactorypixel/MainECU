@@ -77,7 +77,7 @@ class L3Manager : public L3ManagerInterface
 			if(_callbacks.error != nullptr) _callbacks.error(driver, error);
 		}
 
-		// Добавляем программный пакет на отправку
+		// Добавляем программный пакет на отправку. Каналы без открытого сеанса его отбрасывают
 		void AddPacket(uint8_t dev, const uint8_t *data, uint16_t length)
 		{
 			while(dev)
@@ -88,6 +88,20 @@ class L3Manager : public L3ManagerInterface
 				dev &= ~bit;
 			}
 			
+			return;
+		}
+
+		// AddPacket + Commit: сразу отправить во все каналы маски, где открыт сеанс
+		void AddPacketCommit(uint8_t dev, const uint8_t *data, uint16_t length)
+		{
+			while(dev)
+			{
+				uint8_t bit = dev & -dev;
+				L3Driver *driver = GetDriver(bit);	// bit — значение бита, не индекс
+				if(driver != nullptr) driver->AddPacketCommit(data, length);
+				dev &= ~bit;
+			}
+
 			return;
 		}
 

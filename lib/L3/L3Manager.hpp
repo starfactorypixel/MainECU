@@ -13,13 +13,13 @@ class L3Manager : public L3ManagerInterface
 		// (ошибка отправки) и AddDriver() (ошибка запуска). Из задачи приёма — никогда. Любой может быть nullptr
 		struct callbacks_t
 		{
-			// Сеанс открыт: первый валидный пакет клиента
+			// Сеанс открыт: клиент прислал FID_ACCEPT
 			void (*open)(L3Driver *driver);
 
 			// Сеанс закрыт: клиент замолчал (CLOSE_TIMEOUT) или транспорт сообщил об обрыве (CLOSE_TRANSPORT)
 			void (*close)(L3Driver *driver, L3DriverInterface::close_reason_t reason);
 
-			// Сообщение приложения (fId не 0x00/0x01). rx_len — сколько осталось в DATA, не длина сообщения.
+			// Сообщение приложения (не FID_BEACON/FID_ACCEPT/FID_PING). rx_len — сколько осталось в DATA, не длина сообщения.
 			// Вернуть фактическую длину сообщения по fId, 0 — остаток не разбирать
 			uint16_t (*rx)(L3Driver *driver, const uint8_t *rx, uint16_t rx_len);
 

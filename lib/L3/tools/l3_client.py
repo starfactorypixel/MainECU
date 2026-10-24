@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-L3-клиент для ESP32 по UART: подключение по beacon, ответы на пинги, отправка данных
+L3-клиент для ESP32 по UART: подключение по beacon (accept), ответы на пинги, отправка данных
 в форматах RAW / SIGN / ENCRYPT и проверочные «атаки» (повтор, подделка, чужой ключ...).
 
 Зависимости:  pip install pyserial cryptography
@@ -63,7 +63,8 @@ FMT_BY_NAME = {"raw": FMT_RAW, "sign": FMT_SIGN, "encrypt": FMT_ENCRYPT}
 N_MAX = (1 << 56) - 1
 
 FID_BEACON = 0x00
-FID_PING = 0x01
+FID_ACCEPT = 0x01        # клиент -> ESP после beacon: открыть сеанс; ESP -> клиент: сеанс открыт
+FID_PING = 0x05
 BEACON_HEAD = struct.Struct("<BH8sB")          # fId, interval, sn, length = 12 байт, дальше length байт имени
 BEACON_NAME_MAX = 32
 
@@ -224,7 +225,7 @@ def split_messages(data: bytes):
             size = BEACON_HEAD.size + data[i + BEACON_HEAD.size - 1]
             out.append((fid, data[i:i + size]))
             i += size
-        elif fid == FID_PING:
+        elif fid in (FID_PING, FID_ACCEPT):
             out.append((fid, data[i:i + 1]))
             i += 1
         else:
@@ -272,6 +273,7 @@ class Client:
 
     def reset_session(self):
         self.session = False
+        self.accepted = False       # ESP ответил FID_ACCEPT: сеанс открыт, можно слать данные
         self.esp_instance = None
         self.my_instance = None
         self.n_tx = 0
@@ -286,6 +288,7 @@ class Client:
     def connect(self, iv, beacon):
         epoch, inst, counter, n, _ = iv_parts(iv)
         self.session = True
+        self.accepted = False
         self.esp_instance = inst
         self.my_instance = inst ^ 0xFF
         self.n_tx = n
@@ -297,8 +300,8 @@ class Client:
         self.log("ПОДКЛЮЧЕНО: SN %s «%s», epoch %d, counter %d, instance ESP 0x%02X, наш 0x%02X, сеанс ESP %s, наш random %s"
                  % (beacon["sn"], beacon["name"], epoch, counter, inst, self.my_instance, self.esp_session.hex(), self.rnd.hex()))
         if not self.monitor:
-            # Подключение = beacon + первый пакет: ESP открывает сеанс и перестаёт менять его идентификатор
-            self.send(b"", note="первый пакет: открыть сеанс")
+            # Подключение = beacon + FID_ACCEPT. ESP открывает сеанс и отвечает своим FID_ACCEPT
+            self.send(bytes([FID_ACCEPT]), note="accept: открыть сеанс")
 
     # --- вывод
 
@@ -336,7 +339,9 @@ class Client:
             if f.fmt != FMT_RAW:
                 self.log("%s: неизвестный формат, пропуск" % tag)
                 return
-            self.show_messages(tag + " (без подписи)", f.payload, None, trusted=False)
+            # На RAW-канале (формат отправки RAW) RAW-кадры ESP — обычные кадры сеанса; на прочих — недоверенные
+            raw_channel = self.fmt == FMT_RAW and self.session
+            self.show_messages(tag + ("" if raw_channel else " (без подписи)"), f.payload, None, trusted=raw_channel)
             return
 
         if self.key is None:
@@ -404,6 +409,11 @@ class Client:
                          % (prefix, b["sn"], b["name"], b["interval"], sid))
                 if trusted and self.session and iv is not None:
                     self.beacon_interval = b["interval"] or self.beacon_interval
+            elif fid == FID_ACCEPT:
+                self.log("%s ACCEPT" % prefix)
+                if trusted and self.session and not self.accepted:
+                    self.accepted = True
+                    self.log("СЕАНС ОТКРЫТ: ESP подтвердил подключение")
             elif fid == FID_PING:
                 self.log("%s PING" % prefix)
                 if trusted and self.session and not self.monitor:
@@ -492,7 +502,7 @@ class Client:
         if not self.session:
             self.log("сеанса нет, ждём beacon; формат %s" % FMT_NAMES[self.fmt])
             return
-        self.log("сеанс ESP %s: наш N %d:%d, instance 0x%02X, random %s; последний N ESP %d:%d; формат %s; quiet=%s"
+        self.log(("сеанс подтверждён, " if self.accepted else "ждём accept от ESP, ") + "сеанс ESP %s: наш N %d:%d, instance 0x%02X, random %s; последний N ESP %d:%d; формат %s; quiet=%s"
                  % (self.esp_session.hex(), self.n_tx >> 32, self.n_tx & 0xFFFFFFFF, self.my_instance, self.rnd.hex(),
                     self.esp_rx >> 32, self.esp_rx & 0xFFFFFFFF, FMT_NAMES[self.fmt], self.quiet))
 
@@ -505,6 +515,9 @@ class Client:
                 data = bytes.fromhex(line.replace(",", " "))
             except ValueError:
                 self.log("не hex. help — список команд")
+                return
+            if self.session and not self.accepted and not self.monitor:
+                self.log("ESP ещё не подтвердил подключение (accept) — данные не отправлены")
                 return
             self.send(data)
             return
@@ -586,7 +599,7 @@ def load_key(args):
 def main():
     ap = argparse.ArgumentParser(description="L3-клиент ESP32 по UART")
     ap.add_argument("--port", required=True, help="COM5, /dev/ttyUSB0 ...")
-    ap.add_argument("--baud", type=int, default=921000, help="скорость (по умолчанию как в L3DriverDashboard: 921000)")
+    ap.add_argument("--baud", type=int, default=921600, help="скорость (по умолчанию как в L3DriverDashboard: 921600)")
     ap.add_argument("--key", help="ключ, 64 hex-символа")
     ap.add_argument("--key-file", help="файл с ключом в hex")
     ap.add_argument("--format", default="sign", choices=sorted(FMT_BY_NAME), help="формат отправки")

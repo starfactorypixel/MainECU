@@ -12,7 +12,7 @@ class L3ManagerInterface
 		// Сообщение приложения. Вернуть фактическую длину сообщения по fId, 0 — остаток DATA не разбирать
 		virtual uint16_t RxPacket(L3Driver *driver, const uint8_t *rx, uint16_t rx_len) = 0;
 
-		// Сеанс открыт: первый валидный пакет клиента
+		// Сеанс открыт: клиент прислал FID_ACCEPT
 		virtual void SessionOpen(L3Driver *driver) = 0;
 
 		// Сеанс закрыт

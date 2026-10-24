@@ -14,8 +14,8 @@ Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, незави�
 
 Сеанс. Его идентификатор (L3PacketSeq::Session) клиент видит в IV beacon и подписывает им свои пакеты:
 	- пока сеанса нет, каждый beacon несёт новый идентификатор;
-	- сеанс открывается первым принятым аутентифицированным пакетом клиента (клиент шлёт его сразу после
-	  подключения), с этого момента идентификатор не меняется;
+	- сеанс открывается только сообщением FID_ACCEPT от клиента (он шлёт его сразу после beacon), ESP отвечает
+	  своим FID_ACCEPT; с этого момента идентификатор не меняется. Без сеанса остальные кадры отбрасываются;
 	- пока пакеты клиента идут, пинги не отправляются;
 	- пауза _cfg.idle мс -> пинг, далее каждые _cfg.ping_interval мс, всего _cfg.ping_retries штук;
 	- любой валидный пакет клиента (в том числе ответ на пинг) сбрасывает отсчёт;
@@ -126,30 +126,26 @@ class L3Driver : public L3DriverInterface
 				_Error(_packet_rx.GetLastReject());
 			}
 
-			// Активность клиента: счётчик валидных пакетов изменился
+			// Активность клиента (только в сеансе): счётчик валидных пакетов изменился
 			uint32_t count = _packet_rx.GetValidCount();
 			if(count != _state.rx_count)
 			{
 				_state.rx_count = count;
-				_state.rx_time = time;
-				_state.pings = 0;
-
-				if(_state.state != DEVSTATE_ACTIVE)
+				if(_state.state == DEVSTATE_ACTIVE)
 				{
-					_state.state = DEVSTATE_ACTIVE;
-					OnSessionOpen();
-					if(_manager != nullptr) _manager->SessionOpen(this);
+					_state.rx_time = time;
+					_state.pings = 0;
 				}
 			}
 
-			// Принятые данные
+			// Принятые данные. Без сеанса разбирается только FID_ACCEPT
 			while(_packet_rx.IsReady())
 			{
 				uint8_t *data;
 				uint16_t length = _packet_rx.GetPayloadPtr(data);
 				// Здесь только формат канала (_format): RAW возможен лишь на канале, где его разрешил драйвер
 
-				_Dispatch(data, length);
+				_Dispatch(data, length, time);
 				_packet_rx.PopPayload();
 			}
 
@@ -222,7 +218,7 @@ class L3Driver : public L3DriverInterface
 			return;
 		}
 
-		// Сеанс открыт: первый валидный пакет клиента после IDLE/TIMEOUT
+		// Сеанс открыт: принят FID_ACCEPT клиента
 		virtual void OnSessionOpen() {}
 
 		// Сеанс закрыт. BT по CLOSE_TIMEOUT: разорвать соединение. UART/USB: ничего, достаточно состояния
@@ -301,7 +297,7 @@ class L3Driver : public L3DriverInterface
 		}
 
 		// Разбор DATA на сообщения. Транспортные fId обрабатываются здесь, остальные — в L3Manager
-		void _Dispatch(const uint8_t *data, uint16_t length)
+		void _Dispatch(const uint8_t *data, uint16_t length, uint32_t time)
 		{
 			uint16_t offset = 0;
 			while(offset < length)
@@ -310,8 +306,13 @@ class L3Driver : public L3DriverInterface
 				uint16_t left = length - offset;
 				uint16_t processed;
 
+				// Без сеанса принимается только FID_ACCEPT: остальное отбрасывается
+				if(_state.state != DEVSTATE_ACTIVE && msg[0] != L3Fid::FID_ACCEPT) break;
+
 				switch(msg[0])
 				{
+					case L3Fid::FID_ACCEPT:	_Accept(time); processed = sizeof(L3Fid::accept_t); break;
+
 					// Ответ клиента на пинг: активность уже учтена по счётчику валидных пакетов
 					case L3Fid::FID_PING:	processed = sizeof(L3Fid::ping_t); break;
 
@@ -325,6 +326,26 @@ class L3Driver : public L3DriverInterface
 
 				offset += processed;
 			}
+
+			return;
+		}
+
+		// Клиент подключается: открыть сеанс (если ещё не открыт) и ответить FID_ACCEPT.
+		// Ответ уходит с ближайшим Commit (менеджер делает его после Processing), вместе с другими ответами
+		void _Accept(uint32_t time)
+		{
+			if(_state.state != DEVSTATE_ACTIVE)
+			{
+				_state.state = DEVSTATE_ACTIVE;
+				_state.rx_time = time;
+				_state.pings = 0;
+
+				OnSessionOpen();
+				if(_manager != nullptr) _manager->SessionOpen(this);
+			}
+
+			const L3Fid::accept_t accept = {L3Fid::FID_ACCEPT};
+			_AddPacket((const uint8_t *)&accept, sizeof(accept));
 
 			return;
 		}

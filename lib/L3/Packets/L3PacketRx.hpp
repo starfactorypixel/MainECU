@@ -280,7 +280,7 @@ class L3PacketRx final : private L3Packet
 			return _dropped;
 		}
 
-		// Счётчик принятых аутентифицированных пакетов (SIGN/ENCRYPT, прошедших все проверки),
+		// Счётчик принятых кадров, прошедших все проверки (в формате канала, в том числе RAW на RAW-канале),
 		// включая пустые. Только растёт. Драйвер по его изменению видит активность клиента.
 		// Пишет задача приёма, читает runtime: 32-битное выровненное чтение атомарно
 		uint32_t GetValidCount() const
@@ -368,8 +368,9 @@ class L3PacketRx final : private L3Packet
 					return _Reject((ret == MBEDTLS_ERR_GCM_AUTH_FAILED) ? L3C::ERROR_RX_AUTH : L3C::ERROR_RX_CRYPTO);
 
 				_seq->Accept(n);	// только после успешной проверки тега
-				_valid = _valid + 1;	// не ++: инкремент volatile устарел в C++20
 			}
+
+			_valid = _valid + 1;	// кадр прошёл все проверки (RAW — только на RAW-канале). Не ++: volatile в C++20
 
 			_param.error = L3C::ERROR_NONE;
 

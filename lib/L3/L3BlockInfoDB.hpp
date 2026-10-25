@@ -39,7 +39,7 @@ class L3BlockInfoDB
 		uint32_t dynamic_req_time;
 		
 		uint32_t blockinfo_time;			// Время последнего обновления block_info_x
-		L3PacketTypes::block_info_t blockinfo;
+		L3PacketTypes::block_info_t blockinfo = {};
 
 		uint32_t heartbeat_time;			// Время последнего heartbeat пакета
 		uint8_t heartbeat_counter;			// Счётчик последнего heartbeat пакета

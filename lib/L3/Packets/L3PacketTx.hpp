@@ -52,7 +52,7 @@ class L3PacketTx final : private L3Packet
 			return _format;
 		}
 
-		// Записать данные, затирая накопленные
+		// Записать DATA как есть (уже с длинами сообщений), затирая накопленное
 		bool PutPayload(const uint8_t *data, uint16_t length)
 		{
 			const format_info_t &f = _Info();
@@ -70,9 +70,10 @@ class L3PacketTx final : private L3Packet
 			return true;
 		}
 
-		// Дописать данные к накопленным.
+		// Дописать сообщение (fId + данные, length байт) к накопленным: в DATA уходит [length][сообщение].
+		// ERROR_TX_MSG_EMPTY — length == 0.
 		// ERROR_TX_NO_SPACE — в этом пакете нет места, нужен Commit и повтор.
-		// ERROR_TX_DATA_TOO_BIG — не поместится никогда, повторять бессмысленно
+		// ERROR_TX_DATA_TOO_BIG — больше MsgMax(), не поместится никогда, повторять бессмысленно
 		bool AddPayload(const uint8_t *data, uint16_t length)
 		{
 			const format_info_t &f = _Info();
@@ -80,16 +81,26 @@ class L3PacketTx final : private L3Packet
 
 			if(_sealed) return _SetError(L3C::ERROR_TX_SEALED);
 			if(f.capacity == 0) return _SetError(L3C::ERROR_CFG_FORMAT);
-			if(length > f.capacity) return _SetError(L3C::ERROR_TX_DATA_TOO_BIG);
-			if(length > f.capacity - used) return _SetError(L3C::ERROR_TX_NO_SPACE);
+			if(length == 0) return _SetError(L3C::ERROR_TX_MSG_EMPTY);
+			if(length > MsgMax()) return _SetError(L3C::ERROR_TX_DATA_TOO_BIG);
+			if(1 + length > f.capacity - used) return _SetError(L3C::ERROR_TX_NO_SPACE);
 
-			if(length)
-				memcpy(&_packet.payload[f.data_offset + used], data, length);
+			uint8_t *dst = &_packet.payload[f.data_offset + used];
+			dst[0] = (uint8_t)length;
+			memcpy(dst + 1, data, length);
 
-			_packet.payload_len = f.overhead + used + length;
+			_packet.payload_len = f.overhead + used + 1 + length;
 			_param.error = L3C::ERROR_NONE;
 
 			return true;
+		}
+
+		// Наибольшее сообщение (fId + данные) для формата пакета: min(DATA_MAX − 1, 255)
+		uint16_t MsgMax() const
+		{
+			uint16_t cap = _Info().capacity;
+			if(cap == 0) return 0;
+			return (cap - 1 > 255) ? 255 : cap - 1;
 		}
 
 		bool PayloadIsSet()

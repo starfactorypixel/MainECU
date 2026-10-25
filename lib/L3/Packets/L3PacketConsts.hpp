@@ -11,7 +11,10 @@ namespace L3PacketConsts
 	[HEAD] - 2 байта сигнатуры 'P','X'
 	[CTRL] - 2 байта: байт 2 — версия (биты 0..3) + направление (бит 7), байт 3 — формат (биты 0..2)
 	[LEN]  - 2 байта длины PAYL
-	[PAYL] - RAW: сырые данные. SIGN/ENCRYPT: [IV 12][DATA 0..64][TAG 16]
+	[PAYL] - RAW: DATA. SIGN/ENCRYPT: [IV 12][DATA 0..64][TAG 16]
+
+DATA — сообщения подряд, перед каждым его длина: [len u8][fId][данные…] [len u8][fId][данные…] …
+	len — число байт после него (fId + данные), 1..MSG_MAX. Формат один для всех сообщений, служебных тоже.
 	[CRC]  - 2 байта CRC16, сразу за PAYL (позиция зависит от LEN)
 
 IV (12 байт, только SIGN/ENCRYPT)
@@ -65,6 +68,7 @@ CRC считается последним и не защищает от подд
 		ERROR_TX_DATA_TOO_BIG = 0x11,		// данные не поместятся даже в пустой пакет
 		ERROR_TX_NO_SPACE = 0x12,			// в текущем пакете нет места, нужен Commit
 		ERROR_TX_CRYPTO = 0x13,				// сбой mbedtls при подписи/шифровании
+		ERROR_TX_MSG_EMPTY = 0x14,			// сообщение нулевой длины
 
 		// Приём: кадр
 		ERROR_RX_FRAME_TOO_SHORT = 0x20,	// кадр короче минимума
@@ -106,6 +110,7 @@ CRC считается последним и не защищает от подд
 			case ERROR_TX_DATA_TOO_BIG:		return "TX_DATA_TOO_BIG";
 			case ERROR_TX_NO_SPACE:			return "TX_NO_SPACE";
 			case ERROR_TX_CRYPTO:			return "TX_CRYPTO";
+			case ERROR_TX_MSG_EMPTY:		return "TX_MSG_EMPTY";
 			case ERROR_RX_FRAME_TOO_SHORT:	return "RX_FRAME_TOO_SHORT";
 			case ERROR_RX_FRAME_TOO_LONG:	return "RX_FRAME_TOO_LONG";
 			case ERROR_RX_HEAD:				return "RX_HEAD";

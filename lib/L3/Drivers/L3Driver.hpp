@@ -297,34 +297,32 @@ class L3Driver : public L3DriverInterface
 		}
 
 		// Разбор DATA на сообщения. Транспортные fId обрабатываются здесь, остальные — в L3Manager
+		// DATA: [len][fId][данные…] … Сообщение — len байт после байта длины. Неверный len — остаток пропустить
 		void _Dispatch(const uint8_t *data, uint16_t length, uint32_t time)
 		{
-			uint16_t offset = 0;
-			while(offset < length)
+			const uint8_t *p = data;
+			uint16_t left = length;
+
+			while(left > 0)
 			{
-				const uint8_t *msg = data + offset;
-				uint16_t left = length - offset;
-				uint16_t processed;
+				uint8_t n = p[0];
+				if(n == 0 || 1 + n > left) break;
+
+				const uint8_t *msg = p + 1;		// msg[0] — fId
 
 				// Без сеанса принимается только FID_ACCEPT: остальное отбрасывается
 				if(_state.state != DEVSTATE_ACTIVE && msg[0] != L3Fid::FID_ACCEPT) break;
 
 				switch(msg[0])
 				{
-					case L3Fid::FID_ACCEPT:	_Accept(time); processed = sizeof(L3Fid::accept_t); break;
-
-					// Ответ клиента на пинг: активность уже учтена по счётчику валидных пакетов
-					case L3Fid::FID_PING:	processed = sizeof(L3Fid::ping_t); break;
-
-					// Beacon от клиента не ожидается: остаток DATA отбрасываем
-					case L3Fid::FID_BEACON:	processed = 0; break;
-
-					default:				processed = _manager->RxPacket(this, msg, left); break;
+					case L3Fid::FID_ACCEPT:	_Accept(time); break;
+					case L3Fid::FID_PING:	break;			// ответ на пинг: активность учтена по счётчику валидных
+					case L3Fid::FID_BEACON:	break;			// beacon от клиента не ожидается: пропустить
+					default:				_manager->RxPacket(this, msg, n); break;
 				}
 
-				if(processed == 0 || processed > left) break;
-
-				offset += processed;
+				p += 1 + n;
+				left -= 1 + n;
 			}
 
 			return;
@@ -417,7 +415,7 @@ class L3Driver : public L3DriverInterface
 			if(_state.state != DEVSTATE_ACTIVE) _seq.NewSession();
 			_seq.SyncTx();
 			_packet_tx.CfgFormat(L3C::FORMAT_SIGN);
-			_packet_tx.PutPayload((const uint8_t *)&beacon, L3Fid::BEACON_HEAD_LEN + beacon.length);	// без хвоста имени
+			_packet_tx.AddPayload((const uint8_t *)&beacon, L3Fid::BEACON_HEAD_LEN + beacon.length);	// [len][beacon], без хвоста имени
 			_Send();
 
 			_packet_tx.CfgFormat(_format);

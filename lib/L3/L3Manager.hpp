@@ -19,9 +19,9 @@ class L3Manager : public L3ManagerInterface
 			// Сеанс закрыт: клиент замолчал (CLOSE_TIMEOUT) или транспорт сообщил об обрыве (CLOSE_TRANSPORT)
 			void (*close)(L3Driver *driver, L3DriverInterface::close_reason_t reason);
 
-			// Сообщение приложения (не FID_BEACON/FID_ACCEPT/FID_PING). rx_len — сколько осталось в DATA, не длина сообщения.
-			// Вернуть фактическую длину сообщения по fId, 0 — остаток не разбирать
-			uint16_t (*rx)(L3Driver *driver, const uint8_t *rx, uint16_t rx_len);
+			// Сообщение приложения (не FID_BEACON/FID_ACCEPT/FID_PING): msg[0] — fId, length — длина сообщения
+			// (fId + данные). Неизвестный fId — просто игнорировать: следующее сообщение драйвер найдёт по длине
+			void (*rx)(L3Driver *driver, const uint8_t *msg, uint16_t length);
 
 			// Ошибка канала: отклонённый кадр (L3C::ERROR_RX_*), ошибка отправки (ERROR_TX_*), запуска (ERROR_SEQ_*)
 			void (*error)(L3Driver *driver, L3C::error_t error);
@@ -54,12 +54,10 @@ class L3Manager : public L3ManagerInterface
 			return _drivers[__builtin_ctz(dev)];
 		}
 
-		// Транспортное сообщение fId разобрано драйвером, сюда приходят только сообщения приложения
-		virtual uint16_t RxPacket(L3Driver *driver, const uint8_t *rx, uint16_t rx_len) override
+		// Транспортные сообщения драйвер разбирает сам, сюда приходят только сообщения приложения
+		virtual void RxPacket(L3Driver *driver, const uint8_t *msg, uint16_t length) override
 		{
-			if(_callbacks.rx == nullptr) return 0;
-
-			return _callbacks.rx(driver, rx, rx_len);
+			if(_callbacks.rx != nullptr) _callbacks.rx(driver, msg, length);
 		}
 
 		virtual void SessionOpen(L3Driver *driver) override

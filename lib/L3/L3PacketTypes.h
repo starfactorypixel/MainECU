@@ -80,7 +80,7 @@ namespace L3PacketTypes
 	// Пакет информации о блоке.
 	struct __attribute__((packed)) block_info_t
 	{
-		uint8_t fId;
+		uint8_t fId = 0x0A;
 		uint16_t baseID;				// Базовый ID блока
 		
 		// Структура должна полностью повторят пакет block_info_static_t из L2 за исключением fId и idx

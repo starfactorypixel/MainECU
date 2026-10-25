@@ -73,11 +73,9 @@ uint32_t MyMillis()
 	return (esp_timer_get_time() / 1000ULL);
 }
 
-uint16_t L3Rx(L3Driver *driver, const uint8_t *rx, uint16_t rx_len)
+void L3Rx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 {
-	uint16_t fact_length = 0;
-
-	uint8_t fId = rx[0];
+	uint8_t fId = msg[0];
 	switch(fId)
 	{
 		default:
@@ -85,8 +83,6 @@ uint16_t L3Rx(L3Driver *driver, const uint8_t *rx, uint16_t rx_len)
 			break;
 		}
 	}
-
-	return fact_length;
 }
 
 void L3Open(L3Driver *driver)

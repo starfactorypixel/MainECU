@@ -11,7 +11,8 @@ L3-клиент для ESP32 по UART: подключение по beacon (acce
     python l3_client.py --port COM5 --monitor            # только слушать, без ключа тоже можно
 
 Команды в консоли (help — список):
-    10 01 02 ff            отправить DATA (hex) текущим форматом; первый байт — fId сообщения
+    10 01 02 ff            отправить сообщение (hex, первый байт — fId), длина перед ним добавится сама
+    10 01 | 20 02 03       несколько сообщений в одном кадре
     /fmt raw|sign|encrypt  сменить формат отправки
     /replay  /tamper  /stale  /badkey  /badinst  /dir  /crc  /oldboot   проверочные кадры (ESP должен отклонить)
     /quiet                 перестать отвечать на пинги (ESP закроет сеанс и сменит его идентификатор)
@@ -212,30 +213,34 @@ class FrameParser:
         return out
 
 
+def pack(*messages: bytes) -> bytes:
+    """Сообщения (fId + данные) -> DATA: перед каждым его длина, [len][fId][данные…]."""
+    out = bytearray()
+    for m in messages:
+        if not 1 <= len(m) <= 255:
+            raise ValueError("длина сообщения 1..255")
+        out.append(len(m))
+        out += m
+    return bytes(out)
+
+
 def split_messages(data: bytes):
-    """DATA -> [(fId, bytes)]. Транспортные fId режутся по длине, прочее — одним куском до конца DATA."""
+    """DATA -> [(fId, сообщение)], сообщение = fId + данные (без байта длины).
+    Неверная длина (0 или выходит за DATA) — остаток пропускается."""
     out = []
     i = 0
     while i < len(data):
-        fid = data[i]
-        if fid == FID_BEACON:
-            if len(data) - i < BEACON_HEAD.size:
-                out.append((fid, data[i:]))     # обрезанный beacon: покажется как ошибка разбора
-                break
-            size = BEACON_HEAD.size + data[i + BEACON_HEAD.size - 1]
-            out.append((fid, data[i:i + size]))
-            i += size
-        elif fid in (FID_PING, FID_ACCEPT):
-            out.append((fid, data[i:i + 1]))
-            i += 1
-        else:
-            out.append((fid, data[i:]))
+        n = data[i]
+        if n == 0 or i + 1 + n > len(data):
             break
+        msg = data[i + 1:i + 1 + n]
+        out.append((msg[0], msg))
+        i += 1 + n
     return out
 
 
 def parse_beacon(msg: bytes):
-    """Beacon переменной длины: 13 байт заголовка + length байт имени. None — сообщение битое."""
+    """Beacon переменной длины: 12 байт заголовка + length байт имени. None — сообщение битое."""
     if len(msg) < BEACON_HEAD.size:
         return None
     fid, interval, sn, length = BEACON_HEAD.unpack_from(msg)
@@ -301,7 +306,7 @@ class Client:
                  % (beacon["sn"], beacon["name"], epoch, counter, inst, self.my_instance, self.esp_session.hex(), self.rnd.hex()))
         if not self.monitor:
             # Подключение = beacon + FID_ACCEPT. ESP открывает сеанс и отвечает своим FID_ACCEPT
-            self.send(bytes([FID_ACCEPT]), note="accept: открыть сеанс")
+            self.send(pack(bytes([FID_ACCEPT])), note="accept: открыть сеанс")
 
     # --- вывод
 
@@ -420,7 +425,7 @@ class Client:
                     if self.quiet:
                         self.log("  (не отвечаем: /quiet)")
                     else:
-                        self.send(bytes([FID_PING]), note="ответ на пинг")
+                        self.send(pack(bytes([FID_PING])), note="ответ на пинг")
             else:
                 self.log("%s DATA fId 0x%02X: %s" % (prefix, fid, hx(msg)))
 
@@ -512,9 +517,9 @@ class Client:
             return
         if not line.startswith("/") and line not in ("help", "?"):
             try:
-                data = bytes.fromhex(line.replace(",", " "))
+                data = pack(*[bytes.fromhex(part.replace(",", " ")) for part in line.split("|")])
             except ValueError:
-                self.log("не hex. help — список команд")
+                self.log("не hex или пустое сообщение. help — список команд")
                 return
             if self.session and not self.accepted and not self.monitor:
                 self.log("ESP ещё не подтвердил подключение (accept) — данные не отправлены")
@@ -525,7 +530,7 @@ class Client:
         parts = line.split()
         cmd = parts[0].lstrip("/").lower()
         arg = parts[1:]
-        payload = bytes.fromhex("".join(arg[1:])) if len(arg) > 1 else b"\x10\xAA"
+        payload = pack(bytes.fromhex("".join(arg[1:])) if len(arg) > 1 else b"\x10\xAA")
 
         if cmd in ("help", "?"):
             print(__doc__)
@@ -574,7 +579,7 @@ class Client:
             count = int(arg[0]) if arg else 100
             t0 = time.monotonic()
             for i in range(count):
-                self.send(bytes([0x10, i & 0xFF]), note="flood %d/%d" % (i + 1, count))
+                self.send(pack(bytes([0x10, i & 0xFF])), note="flood %d/%d" % (i + 1, count))
             self.log("отправлено %d пакетов за %.3f с" % (count, time.monotonic() - t0))
         else:
             self.log("неизвестная команда. help — список")

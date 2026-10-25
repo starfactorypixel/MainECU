@@ -9,8 +9,8 @@ class L3ManagerInterface
 {
 	public:
 
-		// Сообщение приложения. Вернуть фактическую длину сообщения по fId, 0 — остаток DATA не разбирать
-		virtual uint16_t RxPacket(L3Driver *driver, const uint8_t *rx, uint16_t rx_len) = 0;
+		// Сообщение приложения: msg[0] — fId, length — длина сообщения (fId + данные)
+		virtual void RxPacket(L3Driver *driver, const uint8_t *msg, uint16_t length) = 0;
 
 		// Сеанс открыт: клиент прислал FID_ACCEPT
 		virtual void SessionOpen(L3Driver *driver) = 0;

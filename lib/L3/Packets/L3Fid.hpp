@@ -3,7 +3,8 @@
 #include <stddef.h>
 #include "L3PacketConsts.hpp"
 
-// Идентификаторы сообщений (первый байт каждого сообщения внутри DATA) и транспортные сообщения.
+// Идентификаторы сообщений и транспортные сообщения. В DATA перед каждым сообщением идёт его длина:
+// [len u8][fId][данные…], len = fId + данные. Структуры ниже — само сообщение, без len.
 // Запрос и ответ имеют один fId, различаются битом направления в заголовке пакета.
 // Сообщения FID_BEACON, FID_ACCEPT и FID_PING обрабатывает сам драйвер, наверх (L3Manager) они не передаются.
 namespace L3Fid
@@ -15,8 +16,7 @@ namespace L3Fid
 		FID_PING = 0x05,		// ESP -> клиент при паузе, клиент -> ESP ответ
 	};
 
-	// Beacon передаётся без хвоста имени: BEACON_HEAD_LEN + length байт (12..44).
-	// Длина сообщения при разборе: BEACON_HEAD_LEN + length
+	// Beacon передаётся без хвоста имени: BEACON_HEAD_LEN + length байт (12..44)
 	structpack beacon_t
 	{
 		uint8_t fId;			// FID_BEACON
@@ -41,4 +41,17 @@ namespace L3Fid
 		uint8_t fId;			// FID_PING
 	};
 	static_assert(sizeof(ping_t) == 1, "ping_t size mismatch");
+
+
+	structpack can_packet_t
+	{
+		uint8_t fId = 0x35;
+		uint16_t can_id;
+		uint8_t length;
+		uint8_t data[8];
+
+		void SetData(const uint8_t *ptr, uint8_t len){ memcpy(data, ptr, len); length = len; }
+		uint16_t GetLen(){ return (length + 4); }
+	};
+	static_assert(sizeof(can_packet_t) == 12, "can_packet_t size mismatch");
 };

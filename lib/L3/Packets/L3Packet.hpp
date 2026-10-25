@@ -18,9 +18,9 @@ class L3Packet
 
 		struct format_info_t
 		{
-			uint8_t data_offset;
-			uint8_t overhead;
-			uint8_t capacity;
+			uint16_t data_offset;
+			uint16_t overhead;
+			uint16_t capacity;
 		};
 
 		// format — 3-битное поле (0..7), таблица на все 8 значений, выход за неё невозможен.
@@ -42,6 +42,14 @@ class L3Packet
 			};
 
 			return table[_packet.format];
+		}
+
+		// Сколько байт DATA помещается в пакет: ёмкость формата, урезанная лимитом канала (CfgDataMax)
+		uint16_t _Capacity() const
+		{
+			uint16_t cap = _Info().capacity;
+
+			return (_data_max != 0 && _data_max < cap) ? _data_max : cap;
 		}
 
 		uint16_t _PayloadLength() const
@@ -178,6 +186,7 @@ class L3Packet
 
 		L3C::packet_t _packet;
 		L3PacketSeq *_seq;
+		uint16_t _data_max;			// лимит DATA канала, 0 — без лимита
 		mbedtls_gcm_context _gcm;
 		bool _gcm_ready;
 
@@ -195,6 +204,7 @@ class L3Packet
 			memset(&_packet, 0x00, sizeof(_packet));
 
 			_seq = nullptr;
+			_data_max = 0;
 			_param.key = nullptr;
 			_param.type = 0;
 			_param.error = L3C::ERROR_NONE;
@@ -222,6 +232,14 @@ class L3Packet
 			_seq = seq;
 
 			_CfgGcm();		// SIGN, ENCRYPT. Новый формат со своим шифром — свой _CfgXxx() здесь
+
+			return;
+		}
+
+		// Лимит DATA канала, байт. 0 — без лимита (сколько вмещает формат). Все проверки длины идут от него
+		void CfgDataMax(uint16_t max)
+		{
+			_data_max = max;
 
 			return;
 		}

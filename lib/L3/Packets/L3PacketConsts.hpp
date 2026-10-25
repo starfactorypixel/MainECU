@@ -11,7 +11,7 @@ namespace L3PacketConsts
 	[HEAD] - 2 байта сигнатуры 'P','X'
 	[CTRL] - 2 байта: байт 2 — версия (биты 0..3) + направление (бит 7), байт 3 — формат (биты 0..2)
 	[LEN]  - 2 байта длины PAYL
-	[PAYL] - RAW: DATA. SIGN/ENCRYPT: [IV 12][DATA 0..64][TAG 16]
+	[PAYL] - RAW: DATA. SIGN/ENCRYPT: [IV 12][DATA 0..PACKET_DATA_LEN_MAX][TAG 16]. Канал может урезать DATA (CfgDataMax)
 
 DATA — сообщения подряд, перед каждым его длина: [len u8][fId][данные…] [len u8][fId][данные…] …
 	len — число байт после него (fId + данные), 1..MSG_MAX. Формат один для всех сообщений, служебных тоже.
@@ -38,12 +38,12 @@ CRC считается последним и не защищает от подд
 	static constexpr uint16_t PACKET_HEADER_LEN = 6U;
 	static constexpr uint16_t PACKET_IV_LEN = 12U;
 	static constexpr uint16_t PACKET_TAG_LEN = 16U;
-	static constexpr uint16_t PACKET_DATA_LEN_MAX = 64U;
-	static constexpr uint16_t PACKET_PAYLOAD_RAW_LEN = PACKET_IV_LEN + PACKET_DATA_LEN_MAX + PACKET_TAG_LEN;	// 92
+	static constexpr uint16_t PACKET_DATA_LEN_MAX = 128U;
+	static constexpr uint16_t PACKET_PAYLOAD_RAW_LEN = PACKET_IV_LEN + PACKET_DATA_LEN_MAX + PACKET_TAG_LEN;	// 156
 	static constexpr uint16_t PACKET_CRC_LEN = 2U;
 	static constexpr uint16_t PACKET_AAD_BIND_LEN = 4U;		// идентификатор сеанса в конце AAD пакетов клиента
 	static constexpr uint16_t PACKET_LEN_MIN = PACKET_HEADER_LEN + PACKET_CRC_LEN;							// 8
-	static constexpr uint16_t PACKET_LEN_MAX = PACKET_HEADER_LEN + PACKET_PAYLOAD_RAW_LEN + PACKET_CRC_LEN;	// 100
+	static constexpr uint16_t PACKET_LEN_MAX = PACKET_HEADER_LEN + PACKET_PAYLOAD_RAW_LEN + PACKET_CRC_LEN;	// 172
 
 	static constexpr uint8_t PACKET_VERSION = 0x02;
 	static constexpr uint8_t PACKET_HEAD_0 = 'P';

@@ -11,6 +11,7 @@ class L3PacketTx final : private L3Packet
 	public:
 
 		using L3Packet::CfgKey;
+		using L3Packet::CfgDataMax;
 		using L3Packet::IsError;
 		using L3Packet::GetError;
 
@@ -59,7 +60,7 @@ class L3PacketTx final : private L3Packet
 
 			if(_sealed) return _SetError(L3C::ERROR_TX_SEALED);
 			if(f.capacity == 0) return _SetError(L3C::ERROR_CFG_FORMAT);
-			if(length > f.capacity) return _SetError(L3C::ERROR_TX_DATA_TOO_BIG);
+			if(length > _Capacity()) return _SetError(L3C::ERROR_TX_DATA_TOO_BIG);
 
 			if(length)
 				memcpy(&_packet.payload[f.data_offset], data, length);
@@ -83,7 +84,7 @@ class L3PacketTx final : private L3Packet
 			if(f.capacity == 0) return _SetError(L3C::ERROR_CFG_FORMAT);
 			if(length == 0) return _SetError(L3C::ERROR_TX_MSG_EMPTY);
 			if(length > MsgMax()) return _SetError(L3C::ERROR_TX_DATA_TOO_BIG);
-			if(1 + length > f.capacity - used) return _SetError(L3C::ERROR_TX_NO_SPACE);
+			if(1 + length > _Capacity() - used) return _SetError(L3C::ERROR_TX_NO_SPACE);
 
 			uint8_t *dst = &_packet.payload[f.data_offset + used];
 			dst[0] = (uint8_t)length;
@@ -95,10 +96,10 @@ class L3PacketTx final : private L3Packet
 			return true;
 		}
 
-		// Наибольшее сообщение (fId + данные) для формата пакета: min(DATA_MAX − 1, 255)
+		// Наибольшее сообщение (fId + данные): min(DATA_MAX − 1, 255), DATA_MAX — с учётом лимита канала
 		uint16_t MsgMax() const
 		{
-			uint16_t cap = _Info().capacity;
+			uint16_t cap = _Capacity();
 			if(cap == 0) return 0;
 			return (cap - 1 > 255) ? 255 : cap - 1;
 		}

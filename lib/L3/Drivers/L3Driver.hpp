@@ -191,6 +191,19 @@ class L3Driver : public L3DriverInterface
 			return;
 		}
 
+		// Лимит DATA канала, байт (BLE, LoRa — по размеру кадра транспорта). Вызывается один раз, в конструкторе
+		// драйвера. 0 или не вызван — без лимита (UART): сколько вмещает формат, до PACKET_DATA_LEN_MAX.
+		// Меньше beacon с полным именем нельзя: поднимается до DATA_MIN_BEACON
+		void _CfgDataMax(uint16_t max)
+		{
+			if(max != 0 && max < DATA_MIN_BEACON) max = DATA_MIN_BEACON;
+
+			_packet_tx.CfgDataMax(max);
+			_packet_rx.CfgDataMax(max);
+
+			return;
+		}
+
 		// Протокольная часть Open(): ключ, счётчики, запуск. Транспортную часть драйвер делает сам.
 		// key и epoch — указатели в Config (эпоху Config сохраняет сам, асинхронно).
 		// key == nullptr — канал без защиты (RAW, beacon выключен): счётчики не запускаются.
@@ -238,6 +251,8 @@ class L3Driver : public L3DriverInterface
 		dev_type_t _dev_type = DEVTYPE_NONE;
 
 	private:
+
+		static constexpr uint16_t DATA_MIN_BEACON = 1 + sizeof(L3Fid::beacon_t);	// [len] + beacon с именем 32 байта = 45
 
 		struct state_t
 		{

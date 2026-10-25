@@ -12,6 +12,7 @@ class L3PacketRx final : private L3Packet
 	public:
 
 		using L3Packet::CfgKey;
+		using L3Packet::CfgDataMax;
 		using L3Packet::IsError;
 		using L3Packet::GetError;
 
@@ -115,7 +116,6 @@ class L3PacketRx final : private L3Packet
 		// Возвращает число кадров, прошедших все проверки; ошибка последнего отбракованного в этом куске — GetError()
 		uint16_t PutStream(const uint8_t *data, uint16_t length, uint32_t time)
 		{
-			_CheckTimeout(time);
 			_param.error = L3C::ERROR_NONE;
 
 			uint8_t *frame = (uint8_t *)&_packet;
@@ -125,6 +125,17 @@ class L3PacketRx final : private L3Packet
 			// Байты на повторный просмотр. Помещаются всегда: это хвост одного отбракованного кадра
 			uint8_t back[L3C::PACKET_LEN_MAX];
 			uint16_t back_len = 0, back_pos = 0;
+
+			// Тайм-аут посреди кадра: кандидат был ложным, но внутри мог начинаться настоящий кадр —
+			// его байты со второго просматриваются заново (как после неверного CRC), а не выбрасываются.
+			// Срабатывает только после паузы с недособранным кадром, в обычном потоке не выполняется
+			if(_timeout && (time - _last_rx_time) >= _timeout && _put_idx > 1)
+			{
+				back_len = _put_idx - 1;
+				memcpy(back, frame + 1, back_len);
+				_ResetFrame();
+			}
+			_CheckTimeout(time);
 
 			while(true)
 			{
@@ -347,7 +358,7 @@ class L3PacketRx final : private L3Packet
 			if(f.capacity == 0) return _Reject(L3C::ERROR_RX_FORMAT_RESERVED);
 			if(_packet.format != _format) return _Reject(L3C::ERROR_RX_FORMAT_DENIED);
 			if(_packet.payload_len < f.overhead) return _Reject(L3C::ERROR_RX_PAYLOAD_LEN_MIN);
-			if(_PayloadLength() > f.capacity) return _Reject(L3C::ERROR_RX_DATA_LEN);
+			if(_PayloadLength() > _Capacity()) return _Reject(L3C::ERROR_RX_DATA_LEN);	// с учётом лимита канала
 
 			if(f.overhead)		// SIGN / ENCRYPT
 			{

@@ -50,8 +50,8 @@ VERSION = 0x02
 HEADER_LEN = 6
 IV_LEN = 12
 TAG_LEN = 16
-DATA_MAX = 64
-PAYLOAD_MAX = IV_LEN + DATA_MAX + TAG_LEN      # 92
+DATA_MAX = 128                                  # PACKET_DATA_LEN_MAX; канал может урезать (--data-max)
+PAYLOAD_MAX = IV_LEN + DATA_MAX + TAG_LEN      # 156
 CRC_LEN = 2
 
 DIR_FROM = 0    # от ESP
@@ -257,10 +257,11 @@ def hx(b: bytes) -> str:
 # ---------------------------------------------------------------- клиент
 
 class Client:
-    def __init__(self, port, key, fmt, monitor=False, verbose=False):
+    def __init__(self, port, key, fmt, monitor=False, verbose=False, data_max=0):
         self.port = port
         self.key = key
         self.fmt = fmt
+        self.data_max = data_max
         self.monitor = monitor
         self.verbose = verbose
 
@@ -453,6 +454,9 @@ class Client:
         nn = None
         if fmt != FMT_RAW:
             iv, nn = self.next_iv(n, instance)
+        if self.data_max and len(data) > self.data_max:
+            self.log("DATA %d байт больше лимита канала %d — не отправлено" % (len(data), self.data_max))
+            return
         frame = bytearray(build_frame(direction, fmt, data, key or self.key, iv,
                                       self.esp_session if bind is None else bind))
         if tamper or self.tamper_next:
@@ -608,13 +612,14 @@ def main():
     ap.add_argument("--key", help="ключ, 64 hex-символа")
     ap.add_argument("--key-file", help="файл с ключом в hex")
     ap.add_argument("--format", default="sign", choices=sorted(FMT_BY_NAME), help="формат отправки")
+    ap.add_argument("--data-max", type=int, default=0, help="лимит DATA канала, байт (0 — без лимита, как UART)")
     ap.add_argument("--monitor", action="store_true", help="только слушать: без сеанса и ответов на пинги")
     ap.add_argument("--verbose", "-v", action="store_true", help="печатать кадры целиком в hex")
     args = ap.parse_args()
 
     key = load_key(args)
     port = serial.Serial(args.port, args.baud, timeout=0.02)
-    client = Client(port, key, FMT_BY_NAME[args.format], monitor=args.monitor, verbose=args.verbose)
+    client = Client(port, key, FMT_BY_NAME[args.format], monitor=args.monitor, verbose=args.verbose, data_max=args.data_max)
     client.log("порт %s @ %d, формат %s, ключ %s%s" % (args.port, args.baud, FMT_NAMES[client.fmt],
                                                          "задан" if key else "НЕ задан (только RAW и просмотр)",
                                                          ", режим монитора" if args.monitor else ""))

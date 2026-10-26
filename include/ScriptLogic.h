@@ -6,6 +6,7 @@
 #include <DrakeScriptMappingESP32PSRAM.hpp>
 #include "ScriptLogicCustom.h"
 
+
 namespace ScriptLogic
 {
 	static constexpr uint16_t SCRIPTS_COUNT = 2048;
@@ -63,8 +64,9 @@ namespace ScriptLogic
 		uint8_t _padding[8];
 	};
 
-	void LoadFromSPIFlash()
+	uint16_t LoadFromSPIFlash()
 	{
+		uint16_t count = 0;
 		uint8_t *nor_buffer = universal_buffer;
 		uint32_t nor_read_offset = 0;
 		nor_script_header_h *nor_script_header = (nor_script_header_h *) nor_buffer;
@@ -107,9 +109,11 @@ namespace ScriptLogic
 				DEBUG_LOG_TOPIC("PSRAM", "Mo more PSRAM memory! id:%d\n", script_id);
 				break;
 			}
+
+			count++;
 		}
 		
-		return;
+		return count;
 	}
 	
 	// data со сдвигом sizeof(nor_script_header_h), length без учёта sizeof(nor_script_header_h)
@@ -184,184 +188,6 @@ namespace ScriptLogic
 		return;
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	// Входящий запрос информации о скрипте
-	struct __attribute__((packed)) script_info_req_t
-	{
-		uint8_t cmd = 0x01;
-		uint16_t script_id;
-	};
-	
-	// Исходящий ответ информации о скрипте
-	struct __attribute__((packed)) script_info_resp_t
-	{
-		uint8_t cmd = 0x81;
-		uint16_t script_id;
-		int8_t state;
-	};
-	
-	
-	// Входящий запрос на удаление скрипта
-	struct __attribute__((packed)) script_delete_req_t
-	{
-		uint8_t cmd = 0x02;
-		uint16_t script_id;
-	};
-	
-	// Исходящий ответ удаление скрипта
-	struct __attribute__((packed)) script_delete_resp_t
-	{
-		uint8_t cmd = 0x82;
-		uint16_t script_id;
-		int8_t state;
-	};
-	
-	
-	// Входящий запрос на начало записи скрипта
-	struct __attribute__((packed)) script_upload_init_req_t
-	{
-		uint8_t cmd = 0x03;
-		uint16_t script_id;
-		uint16_t length;
-	};
-	
-	// Исходящий ответ на начало записи скрипта
-	struct __attribute__((packed)) script_upload_init_resp_t
-	{
-		uint8_t cmd = 0x83;
-		uint16_t script_id;
-		uint16_t length;
-		uint8_t chunk_size;
-		uint8_t chunk_nums;
-	};
-	
-	// Входящий запрос на записи скрипта
-	struct __attribute__((packed)) script_upload_proc_req_t
-	{
-		uint8_t cmd = 0x04;
-		uint16_t script_id;
-		uint8_t chunk_idx;
-		uint8_t data[60];
-	};
-	
-	// Исходящий ответ на записи скрипта
-	struct __attribute__((packed)) script_upload_proc_resp_t
-	{
-		uint8_t cmd = 0x84;
-		uint16_t script_id;
-		uint8_t chunk_idx;
-		int8_t state;
-	};
-	
-	
-	// Входящий запрос на начало чтения скрипта
-	struct __attribute__((packed)) script_download_init_req_t
-	{
-		uint8_t cmd = 0x06;
-		uint16_t script_id;
-	};
-	
-	// Исходящий ответ на начало чтения скрипта
-	struct __attribute__((packed)) script_download_init_resp_t
-	{
-		uint8_t cmd = 0x86;
-		uint16_t script_id;
-		uint16_t length;
-		uint8_t chunk_size;
-		uint8_t chunk_nums;
-	};
-	
-	// Входящий запрос на чтения скрипта
-	struct __attribute__((packed)) script_download_proc_req_t
-	{
-		uint8_t cmd = 0x07;
-		uint16_t script_id;
-		uint8_t chunk_idx;
-	};
-	
-	// Исходящий ответ на чтения скрипта
-	struct __attribute__((packed)) script_download_proc_resp_t
-	{
-		uint8_t cmd = 0x87;
-		uint16_t script_id;
-		uint8_t chunk_idx;
-		uint8_t data[60];
-	};
-
-
-	// Входящий запрос на перезагрузку всех скриптов
-	struct __attribute__((packed)) script_reload_req_t
-	{
-		uint8_t cmd = 0x08;
-	};
-	// Исходящий ответ на перезагрузку всех скриптов
-	struct __attribute__((packed)) script_reload_resp_t
-	{
-		uint8_t cmd = 0x88;
-		int8_t state;
-	};
-
-	
-	// Входящий запрос на временное отключение скрипта
-	struct __attribute__((packed)) script_ctrl_req_t
-	{
-		uint8_t cmd = 0x0A;
-		uint16_t script_id;
-		int8_t state;
-	};
-
-	// Исходящий ответ на временное отключение скрипта
-	struct __attribute__((packed)) script_ctrl_resp_t
-	{
-		uint8_t cmd = 0x0A;
-		uint16_t script_id;
-		int8_t state;
-	};
-
-
-	// Входящий запрос на проверку всех скриптов в NOR памяти
-	struct __attribute__((packed)) script_check_req_t
-	{
-		uint8_t cmd = 0x0C;
-	};
-
-	// Исходящий ответ на проверку всех скриптов в NOR памяти
-	struct __attribute__((packed)) script_check_resp_t
-	{
-		uint8_t cmd = 0x0D;
-		uint16_t script_id;
-		int8_t state;
-	};
-
-
 	static constexpr uint16_t CHUNK_SIZE = 60;
 
 	enum transfer_type_t : uint8_t {TRANSFER_NONE, TRANSFER_UPLOAD, TRANSFER_DOWNLOAD};
@@ -373,211 +199,6 @@ namespace ScriptLogic
 		uint16_t current_length;		// Текущая полученная или переданная длина
 	} transfer_data = {};
 
-
-
-
-	bool L3Rx(L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
-	{
-		if(request.GetDataLength() == 0) return false;
-		
-		uint8_t *rx_data_ptr = request.GetDataPtr();
-		uint8_t rx_data_len = request.GetDataLength();
-		uint8_t rx_cmd = rx_data_ptr[0];
-
-		bool result = false;
-		
-		switch(rx_cmd)
-		{
-			// Запрос и ответ информации о скрипте в NOR памяти.
-			// Стоит добавить проверку состояния в PSRAM и флаг en.
-			case 0x01:
-			{
-				if(rx_data_len != sizeof(script_info_req_t)) break;
-				
-				auto req = (script_info_req_t *) rx_data_ptr;
-				
-				nor_script_header_h header = {};
-				GetScriptHeader(req->script_id, header);
-
-				script_info_resp_t resp = {};
-				resp.script_id = req->script_id;
-				resp.state = (header.flag1 == 0x55) ? 1 : 0;
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, sizeof(resp));
-
-				result = true;
-				break;
-			}
-			
-			// Запрос и ответ удаления скрипта
-			case 0x02:
-			{
-				if(rx_data_len != sizeof(script_delete_req_t)) break;
-				
-				auto req = (script_delete_req_t *) rx_data_ptr;
-				
-				DeleteFromSPIFlash(req->script_id);
-
-				script_delete_resp_t resp = {};
-				resp.script_id = req->script_id;
-				resp.state = 1;
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, sizeof(resp));
-				
-				result = true;
-				break;
-			}
-
-			// Запрос и ответ на начало записи скрипта
-			case 0x03:
-			{
-				if(rx_data_len != sizeof(script_upload_init_req_t)) break;
-				
-				auto req = (script_upload_init_req_t *) rx_data_ptr;
-				
-				memset(universal_buffer, 0xFF, NOR_SECTOR_SIZE);
-				
-				transfer_data.type = TRANSFER_UPLOAD;
-				transfer_data.id = req->script_id;
-				transfer_data.total_length = req->length;
-				transfer_data.current_length = 0;			// возможно хранить не 2 знач. а остаток скока байт передать нужною.
-				
-				script_upload_init_resp_t resp = {};
-				resp.script_id = req->script_id;
-				resp.length = req->length;
-				resp.chunk_size = CHUNK_SIZE;
-				resp.chunk_nums = (req->length + (CHUNK_SIZE - 1)) / CHUNK_SIZE;
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, sizeof(resp));
-				
-				result = true;
-				break;
-			}
-			
-			// Приём тела скрипта и ответ подтвержением
-			case 0x04:
-			{
-				if(rx_data_len > sizeof(script_upload_proc_req_t)) break;
-				if(transfer_data.type != TRANSFER_UPLOAD) break;
-				
-				auto req = (script_upload_proc_req_t *) rx_data_ptr;
-				
-				if(transfer_data.id != req->script_id) break;
-				
-				uint16_t write_buff_offset = (CHUNK_SIZE * req->chunk_idx) + sizeof(nor_script_header_h);
-				uint16_t len_left = transfer_data.total_length - transfer_data.current_length;
-				uint16_t data_len = (len_left > CHUNK_SIZE) ? CHUNK_SIZE : len_left;
-
-				if(write_buff_offset + data_len > NOR_SECTOR_SIZE) break;
-				
-				memcpy(&universal_buffer[write_buff_offset], req->data, data_len);
-				transfer_data.current_length += data_len;
-				
-				script_upload_proc_resp_t resp = {};
-				resp.script_id = req->script_id;
-				resp.chunk_idx = req->chunk_idx;
-
-				if(transfer_data.current_length == transfer_data.total_length)
-				{
-					SaveToSPIFlash(req->script_id, universal_buffer, transfer_data.total_length);
-					resp.state = 2;
-				}
-				else
-				{
-					resp.state = 1;
-				}
-				
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, sizeof(resp));
-				
-				result = true;
-				break;
-			}
-
-
-			// Запрос и ответ на начало чтение скрипта
-			case 0x06:
-			{
-				if(rx_data_len != sizeof(script_download_init_req_t)) break;
-				
-				auto req = (script_download_init_req_t *) rx_data_ptr;
-
-				nor_script_header_h header = {};
-				GetScriptHeader(req->script_id, header);
-				
-				LoadFromSPIFlash(req->script_id);
-				transfer_data.type = TRANSFER_DOWNLOAD;
-				transfer_data.id = req->script_id;
-				transfer_data.total_length = header.length;
-				transfer_data.current_length = 0;
-
-				script_download_init_resp_t resp = {};
-				resp.script_id = req->script_id;
-				resp.length = header.length;
-				resp.chunk_size = CHUNK_SIZE;
-				resp.chunk_nums = (header.length + (CHUNK_SIZE - 1)) / CHUNK_SIZE;
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, sizeof(resp));
-				
-				result = true;
-				break;
-			}
-
-			// Отправка тела скрипта
-			case 0x07:
-			{
-				if(rx_data_len > sizeof(script_download_proc_req_t)) break;
-				if(transfer_data.type != TRANSFER_DOWNLOAD) break;
-				
-				auto req = (script_download_proc_req_t *) rx_data_ptr;
-				
-				if(transfer_data.id != req->script_id) break;
-
-				uint16_t read_buff_offset = (CHUNK_SIZE * req->chunk_idx) + sizeof(nor_script_header_h);
-				uint16_t len_left = transfer_data.total_length - transfer_data.current_length;
-				uint16_t data_len = (len_left > CHUNK_SIZE) ? CHUNK_SIZE : len_left;
-
-				script_download_proc_resp_t resp = {};
-				resp.script_id = req->script_id;
-				resp.chunk_idx = req->chunk_idx;
-				memcpy(resp.data, &universal_buffer[read_buff_offset], data_len);
-				transfer_data.current_length += data_len;
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, (data_len + 4));
-
-				result = true;
-				break;
-			}
-			
-			// Запрос и ответ на перезагрузку всех скриптов
-			case 0x08:
-			{
-				if(rx_data_len > sizeof(script_reload_req_t)) break;
-				
-				auto req = (script_reload_req_t *) rx_data_ptr;
-				
-				LoadFromSPIFlash();
-				
-				script_reload_resp_t resp = {};
-				resp.state = 1;
-				response.Type( request.Type() );
-				response.PutData((uint8_t *)&resp, sizeof(resp));
-				
-				result = true;
-				break;
-			}
-		}
-		
-		return result;
-	}
-
-
-
-
-
-
-
-	
 	uint32_t calc_crc_inplace(uint8_t *buff)
 	{
 		nor_script_header_h *hdr = (nor_script_header_h *) buff;
@@ -602,8 +223,7 @@ namespace ScriptLogic
 			return;
 		}
 		
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0x25, TestOpcode);
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0x26, TestOpcode);
+		ScriptObj.SetCustomOpcodeFunc(TestOpcode);
 		LoadFromSPIFlash();
 		
 		return;
@@ -617,3 +237,5 @@ namespace ScriptLogic
 		return;
 	}
 };
+
+#include "ScriptProto.h"

@@ -1,6 +1,5 @@
 #pragma once
 #include <inttypes.h>
-#include <L3Constants.h>
 #include <L3PacketTypes.h>
 #include <CUtils.h>
 

@@ -13,7 +13,8 @@
 #include <StateDB.h>
 #include <L2Wrapper.h>
 #include "CANCore.h"
-#include <L3Wrapper.h>
+#include <L3Manager.hpp>
+#include <Drivers/L3DriverDashboard.hpp>
 #include <L3SubscriptionDB.h>
 #include <L3BlockInfoDB.hpp>
 
@@ -34,16 +35,21 @@ void L2OnError(int8_t code);
 
 
 
-//L3DriverBluetooth L3Driver_BT;  // Для соединения по BT.
-L3DriverUART L3Driver_UART;     // Для соединения по UART (rs485) с бортовым компьютером.
-//L3DriverSerial driver_ss;     // Для соединения по Serial.
-//L3Wrapper L3(0, driver_ss);
-L3Wrapper L3;
+uint32_t MyMillis()
+{
+	return (esp_timer_get_time() / 1000ULL);
+}
 
-void L3OnConnect(L3DevType_t dev, int8_t code);
-bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response);
-void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code);
-void L3OnReset(L3DevType_t dev);
+void L3OnOpen(L3Driver *driver);
+void L3OnClose(L3Driver *driver, L3DriverInterface::close_reason_t reason);
+void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length);
+void L3OnError(L3Driver *driver, L3C::error_t error);
+
+
+const L3Manager::callbacks_t l3_callbacks = {&L3OnOpen, &L3OnClose, &L3OnRx, &L3OnError};
+L3Manager L3ManagerObj(l3_callbacks, &MyMillis);		// убрать MyMillis
+L3DriverDashboard L3DashboardObj;
+
 
 void OnBlockLost(uint8_t *data, uint8_t length);
 void OnBlockUpdate(uint8_t *data, uint8_t length);
@@ -157,54 +163,21 @@ void DumpDB()
 }
 
 
-volatile uint8_t timet_iter = 0;
-void IRAM_ATTR onTimer()
-{
-	cli();
-	
-	switch(timet_iter)
-    {
-        case 0:
-        {
-            //L3Driver_BT.Tick( millis() );
-            timet_iter = 1;
-            break;
-        }
-        case 1:
-        {
-            L3Driver_UART.Tick( millis() );
-            timet_iter = 2;
-            break;
-        }
-        default:
-        {
-            timet_iter = 0;
-            break;
-        }
-	}
-	
-	sei();
-}
-
-
-
-
-
-
 // Колбеки обработчика BlockInfoDB //
 
 void OnCanSendData(uint16_t id, uint8_t *data, uint8_t length)
 {
-	DEBUG_LOG_TOPIC("BlockInfo", "CANSend: id: 0x%04X, fId: 0x%02X\n", id, data[0]);
+	//DEBUG_LOG_TOPIC("BlockInfo", "CANSend: id: 0x%04X, fId: 0x%02X\n", id, data[0]);
 
 	L2.Send(id, data, length);
 }
 
 void OnBlockUpdate(uint8_t *data, uint8_t length)
 {
-	DEBUG_LOG_TOPIC("BlockInfo", "L3Send data\n");
+	//DEBUG_LOG_TOPIC("BlockInfo", "L3Send data\n");
 
-	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 1, data, length);
+	//L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 1, data, length);
+	L3ManagerObj.AddPacketCommit(L3DriverInterface::DEVTYPE_ALL, data, length);
 
 	return;
 }
@@ -219,7 +192,8 @@ void OnBlockLost(uint8_t *data, uint8_t length)
 {
 	DEBUG_LOG_TOPIC("BlockInfo", "L3Send lost\n");
 	
-	L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 2, data, length);
+	//L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 2, data, length);
+	L3ManagerObj.AddPacketCommit(L3DriverInterface::DEVTYPE_ALL, data, length);
 
 	return;
 }
@@ -304,13 +278,9 @@ esp_pm_configure(&pm_config);
     L2.RegCallback(L2OnRX, L2OnError);
     L2.Init();
 
-	//SPI::Dev_Active(SPI::PIN_CS_CAN_RS);
-
     
-    //L3.AddDevice(L3Driver_BT);
-    L3.AddDevice(L3Driver_UART);
-    L3.RegCallback(L3OnConnect, L3OnRX, L3OnError, L3OnReset);
-    L3.Init();
+
+	L3ManagerObj.AddDriver(L3DashboardObj);
 
 
 
@@ -329,13 +299,6 @@ esp_pm_configure(&pm_config);
 	disableCore1WDT();
 	disableLoopWDT();
 	
-	
-	hw_timer_t *My_timer = NULL;
-    My_timer = timerBegin(0, 80, true);
-    timerAttachInterrupt(My_timer, &onTimer, true);
-    timerAlarmWrite(My_timer, 1000, true);
-    timerAlarmEnable(My_timer);
-
 
 
 
@@ -358,12 +321,8 @@ esp_pm_configure(&pm_config);
 uint32_t current_time = 0;
 uint32_t tick = 0;
 
-#include <Packets/test.hpp>
-
 void loop()
 {
-	//qwe();
-
     current_time = millis();
 
 	About::Loop(current_time);
@@ -379,8 +338,9 @@ void loop()
 
     L2.Processing(current_time);
 
-    L3.Processing(current_time);
+	L3ManagerObj.Processing();
 
+/*
 	static uint32_t wqeqqwe = 0;
 	if(millis() - wqeqqwe > 1000)
 	{
@@ -392,7 +352,8 @@ void loop()
 		});
 		DEBUG_LOG_SIMPLE("err: %d\n", global_error_count);
 	}
-    
+*/
+
 	DB.Processing([](uint16_t id, StateDB::db_t &obj)
 	{
 		// Выполняем скрипты для id
@@ -400,15 +361,13 @@ void loop()
 		
 		// Получаем подписанные устройства для id и отправляем данные
 		uint8_t subs = SubsDB.GetDevices(id);
-		while(subs)
-		{
-			uint8_t bit = subs & -subs;
-			//DEBUG_LOG_TOPIC("L3_Send", "Dev: 0x%02X, ID: 0x%04X ...", bit, id);
-			L3.Send((L3DevType_t)bit, L3_REQTYPE_EVENTS, id, obj.data, obj.length);
-			//DEBUG_LOG_SIMPLE(" done;\n");
-			subs &= ~bit;
-		}
+
+		L3Fid::can_packet_t packet = {};
+		packet.can_id = id;
+		packet.SetData(obj.data, obj.length);
+		L3ManagerObj.AddPacket(subs, (uint8_t *)&packet, packet.GetLen());
 	});
+	L3ManagerObj.Commit(L3DriverInterface::DEVTYPE_ALL);
 
 	BlockInfoDB.Processing(current_time);
 
@@ -427,168 +386,68 @@ void loop()
 }
 
 
-// Подключение устройства по протоколу L3.
-void L3OnConnect(L3DevType_t dev, int8_t code)
+
+
+
+
+
+
+
+void L3OnOpen(L3Driver *driver)
 {
-	if(code == 2)
-	{
-		/*
-		BlockInfoDB.GetAllIter([&](uint8_t *data, uint8_t length)
-		{
-			L3.Send(dev, L3_REQTYPE_NONE05, 1, data, length);
-		});
-		*/
-	}
+	DEBUG_LOG_TOPIC("L3", "Session open, dev 0x%02X\n", driver->GetType());
+	
+	return;
+}
+
+void L3OnClose(L3Driver *driver, L3DriverInterface::close_reason_t reason)
+{
+	DEBUG_LOG_TOPIC("L3", "Session close, dev 0x%02X, reason %u\n", driver->GetType(), reason);
+	
+	SubsDB.Unsubscribe(driver->GetType());
 
 	return;
 }
 
-// Приём пакета по протоколу L3. Реализовано.
-bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &response)
+void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 {
-	bool result = false;
+	L3DriverInterface::dev_type_t dev_type = driver->GetType();
 	
-	uint8_t *packet_ptr = request.GetPacketPtr();
-	uint8_t *data_ptr = request.GetDataPtr();
-	
-	DEBUG_LOG_TOPIC("L3_OnRX", "Type: 0x%02X, Param: 0x%04X, Data(%d): ", request.Type(), request.Param(), request.GetDataLength());
-	DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
-	DEBUG_LOG_SIMPLE(";\n");
-	
-	// https://wiki.starpixel.org/books/mainecu/page/protokol-l3#bkmrk-%D0%A2%D0%B8%D0%BF%D1%8B-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0
-    switch (request.Type())
-    {
-        case 0x00:
-        {
-            // Все сервисные флаги будут установлены автоматически.
-            response = request;
-            result = true;
-            
-            break;
-        }
-        /*
-        case 0x01:
-        {
-            StateDB::db_t db_obj;
-            if( DB.Get(request.Param(), db_obj) == true )
-            {
-                response.Type( request.Type() );
-                response.Param( request.Param() );
-                response.PutData( db_obj.data, db_obj.length );
-            }
-            else
-            {
-                response.Type(L3_REQTYPE_ERROR);
-                response.Param( request.Param() );
-                response.PutData( 0x01 );
-            }
-            result = true;
-            
-            break;
-        }
-        */
-
-		// Запрос на регистрацию подсписки на параметр. Param() < 32768 = подписка, Param() > 32767 = отписка.
-		// Если ID подходящий (<2048), то отмечаем флаг в БД подписок и отвечаем с текущим параметром из БД состояний.
-		// Если ID не подходящий (>2048), то отправляем ошибку.
-		case L3_REQTYPE_SUBSCRIBE:
+	switch(msg[0])
+	{
+		case 0x12:
 		{
-			if(request.Param() < 0x0800)
-			{
-				SubsDB.Subscribe(request.Param(), dev, false);
-
-				DEBUG_LOG_TOPIC("L3_SUB", "ID: 0x%04X\n", request.Param());
-				
-				StateDB::db_t db_obj;
-				#warning return false if not set data. Send to L3 empty data!
-				
-				if( DB.Get(request.Param(), db_obj) == true )
-				{
-					// Отправляем в устройство текущее значение.
-					response.Type( request.Type() );
-					response.Param( request.Param() );
-					response.PutData( db_obj.data, db_obj.length );
-				}
-				else
-				{
-					// Отправляем в устройство ошибку отсутствия данных.
-					response.Type(L3_REQTYPE_ERROR);
-					response.Param( request.Param() );
-					response.PutData( 0xE0 );
-					
-					// Отправляем в CAN пакет запроса значения.
-					L2Wrapper::packet_v2_t can_packet;
-					can_packet.id = request.Param();
-					can_packet.raw_data_len = 1;
-					can_packet.func_id = 0x11;
-					L2.Send(can_packet);
-				}
-                
-                // Отвечаем текущим значением.
-				//response.Type( request.Type() );
-				//response.Param( request.Param() );
-				//response.PutData( db_obj.data, db_obj.length );
-			}
-			else if( (request.Param() % 0x8000) < 0x0800 )
-			{
-				SubsDB.Unsubscribe( (request.Param() % 0x8000), dev );
-
-				DEBUG_LOG_TOPIC("L3_UNSUB", "ID: 0x%04X\n", request.Param());
-				
-				// Отвечаем пустым значением.
-				response.Type( request.Type() );
-				response.Param( request.Param() );	// надо (request.Param() % 0x8000)
-			}
-			else
-			{
-				// Отвечаем ошибкой.
-				response.Type(L3_REQTYPE_ERROR);
-				response.Param( request.Param() );
-				response.PutData( 0xEE );
-			}
+			const uint8_t count = msg[1];
+			const uint8_t *data = &msg[2];
 			
-			result = true;
-			
-			break;
-		}
-
-		case L3_REQTYPE_SUBSCRIBE_PACK:
-		{
-			uint8_t *id_array_ptr = request.GetDataPtr();
-			uint8_t id_array_len = request.GetDataLength();
-			
-			//DEBUG_LOG_ARRAY_HEX("SUB_PACK_hex", request.GetPacketPtr(), request.GetPacketLength());
-			//DEBUG_LOG_NEW_LINE();
-			
-			if(id_array_len % 2 != 0) break;
-			
-			uint16_t id_raw;
-			uint16_t id;
-			uint8_t unsubscribe;
 			StateDB::db_t db_obj;
-			for(uint8_t i = 0; i < id_array_len; i += 2)
+			for(uint8_t i = 0; i < (count * 2); i += 2)
 			{
-				id_raw = *((uint16_t*)&id_array_ptr[i]);
-				id = id_raw & 0x7FFF;
-				unsubscribe = id_raw >> 15;
+				const uint16_t id_raw = data[i] | (uint16_t(data[i+1]) << 8);
+				const uint16_t id = id_raw & 0x7FFF;
+				const bool unsubscribe = id_raw >> 15;
 				
 				// Подписка
-				if(unsubscribe == 0)
+				if(unsubscribe == false)
 				{
-					//DEBUG_LOG_TOPIC("L3_SUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, (id_array_len / 2), id);
+					DEBUG_LOG_TOPIC("L3_SUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, count, id);
 					
-					SubsDB.Subscribe(id, dev, false);
+					SubsDB.Subscribe(id, dev_type, false);
 					
-					if( DB.Get(id, db_obj) == true )
+					if(DB.Get(id, db_obj) == true)
 					{
 						// Отправляем в устройство текущее значение.
-						L3.Send(dev, L3_REQTYPE_EVENTS, id, db_obj.data, db_obj.length);
+						
+						L3Fid::can_packet_t packet = {};
+						packet.can_id = id;
+						packet.SetData(db_obj.data, db_obj.length);
+						driver->AddPacket((uint8_t *)&packet, packet.GetLen());
 					}
 					else
 					{
 						// Отправляем в устройство ошибку отсутствия данных.
-						uint8_t data[] = {0xE0};
-						L3.Send(dev, L3_REQTYPE_ERROR, id, data, sizeof(data));
+						//uint8_t data[] = {0xE0};
+						//L3.Send(dev, L3_REQTYPE_ERROR, id, data, sizeof(data));
 						
 						// Отправляем в CAN пакет запроса значения.
 						L2Wrapper::packet_v2_t can_packet;
@@ -603,46 +462,31 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				{
 					//DEBUG_LOG_TOPIC("L3_UNSUB_PACK", "(%d/%d), ID: 0x%04X\n", (i / 2)+1, (id_array_len / 2), id);
 					
-					SubsDB.Unsubscribe(id, dev);
+					SubsDB.Unsubscribe(id, dev_type);
 					
 					// Отвечаем пустым значением.
 					//response.Type(L3_REQTYPE_EVENTS);
 					//response.Param(id);
 				}
 			}
-			result = false;
-			
+			driver->Commit();
+
 			break;
 		}
-
-        // Событие с телефона.
-        case L3_REQTYPE_EVENTS:
-        {
-			//DEBUG_LOG_TOPIC("L3", "L3_REQTYPE_EVENTS");
-			//DEBUG_LOG_NEW_LINE();
-
-			DEBUG_LOG_TOPIC("L3_ReqEvent", "ID: %d, %RawPacket(%d): ", request.Param(), request.GetDataLength());
-			DEBUG_LOG_ARRAY_HEX(nullptr, data_ptr, request.GetDataLength());
+		
+		// Пакет can_packet_t от L3 устройства
+		case 0x35:
+		{
+			const L3Fid::can_packet_t *packet = (const L3Fid::can_packet_t *)msg;
+			
+			DEBUG_LOG_TOPIC("L3_ReqEvent", "ID: %d, %RawPacket(%d): ", packet->can_id, packet->length);
+			DEBUG_LOG_ARRAY_HEX(nullptr, packet->data, packet->length);
 			DEBUG_LOG_SIMPLE(";\n");
-
-            if(request.Param() < 0x0800)
-            {
-                SubsDB.Subscribe(request.Param(), dev, true);
-
-/*
-                //L2Wrapper::packet_t can_packet = { request.Param(), false, false, 0, request.GetDataLength() };
-				L2Wrapper::packet_t can_packet = {};
-				can_packet.id = request.Param();
-				can_packet.length = request.GetDataLength();
-                for(uint8_t i = 0; i < request.GetDataLength(); ++i)
-                {
-                    can_packet.data[i] = data_ptr[i];
-                }
-                
-                L2.Send(can_packet);
-*/
-				L2.Send( request.Param(), data_ptr, request.GetDataLength() );
-            }
+			
+			SubsDB.Subscribe(packet->can_id, dev_type, true);
+			L2.Send((uint16_t)packet->can_id, (uint8_t *)packet->data, (uint8_t)packet->length);
+			
+			/*
             else
 			{
 				// Отвечаем ошибкой.
@@ -650,118 +494,70 @@ bool L3OnRX(L3DevType_t dev, L3Wrapper::packet_t &request, L3Wrapper::packet_t &
 				response.Param( request.Param() );
 				response.PutData( 0xEE );
 			}
+			*/
+			
+			break;
+		}
 
-            break;
-        }
-        
-        /*
-        case 0x19:
-        {
-            if( DB.Set( request.Param(), data_ptr, request.GetDataLength(), request.GetPacketTime() ) == true )
-            {
-                StateDB::db_t db_obj;
-                DB.Get(request.Param(), db_obj);
-                
-                response.Type( request.Type() );
-                response.Param( request.Param() );
-                response.PutData( db_obj.data, db_obj.length );
-            }
-            else
-            {
-                response.Type( 0x1E );
-                response.Param( request.Param() );
-                response.PutData( 0x03 );
-            }
-            result = true;
-            
-            break;
-        }
-        */
-        case 0x1A:
-        {
-            DumpDB();
-
-            break;
-        }
 		case 0x1B:
 		{
-			result = ScriptLogic::L3Rx(request, response);
-			break;
-		}
-        default:
-        {
-            response.Type(L3_REQTYPE_ERROR);
-            response.Param( request.Param() );
-            response.PutData( 0x02 );
-            result = true;
-            
-            break;
-        }
-    }
-    
-    return result;
-}
+			uint8_t tx[ScriptProto::MSG_MAX];
+			uint16_t tx_len;
+			
+			ScriptProto::Rx(msg, length, tx, tx_len);
+			if(tx_len > 0)
+			{
+				driver->AddPacket(tx, tx_len);
+				//driver->Commit();	// TODO: если менеджер сам делает Commit() после разбора пакета — убрать, ответы будут упакованы вместе
+			}
 
-// Ошибка приёма пакета по протоколу L3. Реализовано.
-void L3OnError(L3DevType_t dev, L3Wrapper::packet_t &packet, int8_t code)
-{
-	uint8_t *packet_ptr = packet.GetPacketPtr();
-	
-	DEBUG_LOG_TOPIC("L3_OnEr", "RawPacket(%d): ", packet.GetPacketLength());
-	DEBUG_LOG_ARRAY_HEX(nullptr, packet_ptr, packet.GetPacketLength());
-	DEBUG_LOG_SIMPLE(";\n");
-	
-	switch(code)
-	{
-		case packet.ERROR_FORMAT:
-		{
-			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_FORMAT");
-			
+
 			break;
 		}
-		case packet.ERROR_VERSION:
-		{
-			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_VERSION");
-			
-			break;
-		}
-		case packet.ERROR_CRC:
-		{
-			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_CRC");
-			
-			break;
-		}
-		case packet.ERROR_OVERFLOW:
-		{
-			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_OVERFLOW");
-			
-			break;
-		}
-		case packet.ERROR_TIMEOUT:
-		{
-			DEBUG_LOG_TOPIC("L3_OnEr", "code: %c;\n", "ERROR_TIMEOUT");
-			
-			break;
-		}
+
 		default:
 		{
-			DEBUG_LOG_TOPIC("L3_OnEr", "code: %d;\n", code);
-			
 			break;
 		}
 	}
+
+	return;
+}
+
+void L3OnError(L3Driver *driver, L3C::error_t error)
+{
+	DEBUG_LOG_TOPIC("L3", "Error, dev 0x%02X: %s\n", driver->GetType(), L3C::ErrorName(error));
 	
 	return;
 }
 
-void L3OnReset(L3DevType_t dev)
+
+
+
+
+
+
+
+
+
+
+
+/*
+// Подключение устройства по протоколу L3.
+void L3OnConnect(L3DevType_t dev, int8_t code)
 {
-	DEBUG_LOG_TOPIC("L3_OnRst", "dev: 0x%02X;\n", dev);
-	
-	SubsDB.Unsubscribe(dev);
-	
+	if(code == 2)
+	{
+		//BlockInfoDB.GetAllIter([&](uint8_t *data, uint8_t length)
+		//{
+		//	L3.Send(dev, L3_REQTYPE_NONE05, 1, data, length);
+		//});
+	}
+
 	return;
 }
+*/
+
 
 
 

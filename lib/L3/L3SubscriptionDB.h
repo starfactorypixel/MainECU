@@ -5,7 +5,6 @@
 
 #pragma once
 #include <inttypes.h>
-#include <L3Constants.h>
 
 class L3SubscriptionDB
 {

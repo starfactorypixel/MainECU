@@ -6,7 +6,6 @@
 
 #pragma once
 #include <inttypes.h>
-#include <L3Constants.h>
 
 class StateDB
 {

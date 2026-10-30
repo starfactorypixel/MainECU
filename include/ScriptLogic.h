@@ -6,6 +6,7 @@
 #include <DrakeScriptMappingESP32PSRAM.hpp>
 #include "ScriptLogicCustom.h"
 
+
 namespace ScriptLogic
 {
 	static constexpr uint16_t SCRIPTS_COUNT = 2048;
@@ -63,8 +64,9 @@ namespace ScriptLogic
 		uint8_t _padding[8];
 	};
 
-	void LoadFromSPIFlash()
+	uint16_t LoadFromSPIFlash()
 	{
+		uint16_t count = 0;
 		uint8_t *nor_buffer = universal_buffer;
 		uint32_t nor_read_offset = 0;
 		nor_script_header_h *nor_script_header = (nor_script_header_h *) nor_buffer;
@@ -107,9 +109,11 @@ namespace ScriptLogic
 				DEBUG_LOG_TOPIC("PSRAM", "Mo more PSRAM memory! id:%d\n", script_id);
 				break;
 			}
+
+			count++;
 		}
 		
-		return;
+		return count;
 	}
 	
 	// data со сдвигом sizeof(nor_script_header_h), length без учёта sizeof(nor_script_header_h)
@@ -602,8 +606,7 @@ namespace ScriptLogic
 			return;
 		}
 		
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA0, TestOpcode);
-		ScriptObj.RegCustomOpcode((opcode_idx_t)0xA1, TestOpcode);
+		ScriptObj.SetCustomOpcodeFunc(TestOpcode);
 		LoadFromSPIFlash();
 		
 		return;

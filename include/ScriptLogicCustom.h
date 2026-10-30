@@ -10,16 +10,16 @@ namespace ScriptLogic
 	struct __attribute__((packed)) CanSendRaw11_t
 	{
 		uint8_t opcode;
-		uint16_t can_id : 12;
-		uint16_t length : 4;
+		uint16_t can_id;
+		uint8_t length;
 		uint8_t data[8];
 	};
 	
 	struct __attribute__((packed)) CanSendRegVal11_t
 	{
 		uint8_t opcode;
-		uint16_t can_id : 12;
-		uint16_t length : 4;
+		uint16_t can_id;
+		uint8_t length;
 		uint8_t fid;
 		var_type_t type;
 		reg_idx_t reg1;
@@ -40,7 +40,7 @@ namespace ScriptLogic
 	void TestOpcode(DrakeScriptRegisters &registers, const uint8_t *bytes, uint16_t &offset)
 	{
 		opcode_idx_t opcode = (opcode_idx_t)bytes[0];
-		
+
 		switch(opcode)
 		{
 			case 0xA0:
@@ -62,13 +62,13 @@ namespace ScriptLogic
 				
 				data[data_offset++] = obj->fid;
 				
-				if(obj->reg1 != 0xFF)
+				if(obj->reg1 != 0x00)
 					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg1), obj->type);
 				
-				if(obj->reg2 != 0xFF)
+				if(obj->reg2 != 0x00)
 					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg2), obj->type);
 				
-				if(obj->reg3 != 0xFF)
+				if(obj->reg3 != 0x00)
 					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg3), obj->type);
 				
 				L2.Send(obj->can_id, data, obj->length);

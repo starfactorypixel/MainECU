@@ -55,7 +55,12 @@ namespace L3Fid
 	static_assert(sizeof(ping_t) == 1, "ping_t size mismatch");
 	
 	
-	static constexpr uint8_t max_subscribe_count = (L3PacketConsts::PACKET_DATA_LEN_MAX - 3) / 2;
+	// Наибольшее сообщение (fId + данные): min(PACKET_DATA_LEN_MAX − 1, 255) — длина сообщения в DATA один байт
+	static constexpr uint16_t MSG_MAX = (L3PacketConsts::PACKET_DATA_LEN_MAX - 1 > 255) ? 255 : L3PacketConsts::PACKET_DATA_LEN_MAX - 1;
+
+	// Подписка/отписка: [0x12][count][id u16 × count]. id: младшие 15 бит — CAN ID, старший бит (0x8000) — отписка.
+	// Пример: отписка 0x0164 -> байты 64 81. В эфир уходит 2 + 2 × count байт, не вся структура
+	static constexpr uint8_t max_subscribe_count = (MSG_MAX - 2) / 2;
 	structpack subscribe_t
 	{
 		uint8_t fId = FID_SUBSCRIBE;
@@ -66,7 +71,7 @@ namespace L3Fid
 			uint16_t unsubscribe : 1;
 		} ids[max_subscribe_count];
 	};
-	static_assert(sizeof(subscribe_t) <= L3PacketConsts::PACKET_DATA_LEN_MAX, "subscribe_t size mismatch");
+	static_assert(sizeof(subscribe_t) <= MSG_MAX, "subscribe_t size mismatch");
 	
 
 	// Пакет информации о блоке.

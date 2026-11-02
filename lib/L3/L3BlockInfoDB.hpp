@@ -114,7 +114,7 @@ class L3BlockInfoDB
 					
 					blocks_info_t &obj = _blocks[(base_id >> 4)];
 					obj.alive = true;
-					obj.blockinfo.baseID = base_id;
+					obj.blockinfo.baseId = base_id;
 					obj.heartbeat_time = time;
 					obj.heartbeat_counter = counter;
 					
@@ -138,7 +138,7 @@ class L3BlockInfoDB
 					uint8_t *write_ptr = (uint8_t *)&block.blockinfo.istatic + rel_idx;
 					memcpy(write_ptr, data_ptr, data_len);
 					block.blockinfo_time = time;
-					block.blockinfo.baseID = base_id;
+					block.blockinfo.baseId = base_id;
 					block.flags_rx_static |= (1 << page_idx);
 					
 					// Если мы получили ВСЕ части пакета block_info_static_t
@@ -167,7 +167,7 @@ class L3BlockInfoDB
 					uint8_t *write_ptr = (uint8_t *)&block.blockinfo.idynamic + rel_idx;
 					memcpy(write_ptr, data_ptr, data_len);
 					block.blockinfo_time = time;
-					block.blockinfo.baseID = base_id;
+					block.blockinfo.baseId = base_id;
 					block.flags_rx_dynamic |= (1 << page_idx);
 					
 					// Если мы получили ВСЕ части пакета block_info_dynamic_t
@@ -278,7 +278,7 @@ class L3BlockInfoDB
 						block.static_req_time = time;
 						
 						uint8_t packet[] = {0x32};
-						_FuncCanSend(block.blockinfo.baseID, packet, sizeof(packet));
+						_FuncCanSend(block.blockinfo.baseId, packet, sizeof(packet));
 					}
 					
 					// Если запроса dynamic части не было
@@ -300,7 +300,7 @@ class L3BlockInfoDB
 							block.dynamic_req_time = time;
 							
 							uint8_t packet[] = {0x33};
-							_FuncCanSend(block.blockinfo.baseID, packet, sizeof(packet));
+							_FuncCanSend(block.blockinfo.baseId, packet, sizeof(packet));
 						}
 					}
 					

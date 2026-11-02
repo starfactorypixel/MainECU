@@ -1,6 +1,7 @@
 #pragma once
 #include <inttypes.h>
 #include <string.h>
+#include <stddef.h>
 #include "Packets/L3PacketConsts.hpp"
 
 // Идентификаторы сообщений и транспортные сообщения. В DATA перед каждым сообщением идёт его длина:

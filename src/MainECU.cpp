@@ -248,8 +248,6 @@ esp_pm_configure(&pm_config);
 
 
 	// ------------------------------------------------------------------------------------
-	Logger.PrintTopic("CORE").Print("Serial Number: ").Print(Config::obj.security.serial, sizeof(Config::obj.security.serial), LOG_OUT_TYPE_HEX).PrintNewLine();
-	
 	DEBUG_LOG_TOPIC("CORE", "EEPROM Dump(%d): ", EEPROM.length());
 	#ifdef DEBUG
 	uint8_t data;

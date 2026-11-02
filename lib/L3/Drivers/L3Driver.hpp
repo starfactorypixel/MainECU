@@ -416,7 +416,7 @@ class L3Driver : public L3DriverInterface
 		{
 			_Commit();	// сначала накопленное: beacon идёт через тот же объект и затёр бы его
 
-			const auto &cfg = Config::body.security;	// ссылка, не копия (в копию попадал бы ключ)
+			const auto &cfg = Config::Obj().security;	// ссылка, не копия (в копию попадал бы ключ)
 			L3Fid::beacon_t beacon = {};
 			beacon.fId = L3Fid::FID_BEACON;
 			beacon.interval = _cfg.beacon_interval;

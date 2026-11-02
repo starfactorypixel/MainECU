@@ -1,44 +1,34 @@
 #pragma once
-
 #include <inttypes.h>
 #include <esp_system.h>
 #include <EEPROM.h>
 #include "ConfigData.h"
+#include <CUtils_Crypto.h>
 
 namespace Config
 {
 	static constexpr uint16_t eeprom_offset = 0;
 
-
-
-
-
-
 	// Блок данных, временно, потом обернуть как в https://github.com/starfactorypixel/SlaveECU_SteeringRack/blob/board_v2.1/include/Config.h
-	config_body_t body;
 
-	config_body_t &Obj()
-	{
-		return body;
-	}
-
-
-	
 	struct config_t
 	{
-		uint8_t version = 1;
-		
-		struct 
-		{
-			bool sn_init = false;
-			uint8_t serial[8];
-		} security;
-	} obj;
+		uint8_t version = 3;
+		config_body_t data = {};
+	} config_obj;
 	
+	config_body_t &Obj()
+	{
+		return config_obj.data;
+	}
+
+	void FirstSetup();
 	
 	void Save()
 	{
-		EEPROM.put(eeprom_offset, obj);
+		DEBUG_LOG_TOPIC("CFG", "Save()\n");
+		
+		EEPROM.put(eeprom_offset, config_obj);
 		EEPROM.commit();
 		
 		return;
@@ -46,11 +36,12 @@ namespace Config
 	
 	void Load()
 	{
-		if( EEPROM.readByte(eeprom_offset) != obj.version )
+		if(EEPROM.readByte(eeprom_offset) != config_obj.version)
 		{
+			FirstSetup();
 			Save();
 		}
-		EEPROM.get(eeprom_offset, obj);
+		EEPROM.get(eeprom_offset, config_obj);
 		
 		return;
 	}
@@ -63,21 +54,36 @@ namespace Config
 		
 		return;
 	}
+
+	void FirstSetup()
+	{
+		// Генерируем серийный номер
+		auto &sn = Obj().security.sn;
+		GetSerialNumber64(sn);
+		
+		// Генерируем имя по умолчанию
+		auto &name = Obj().security.name;
+		snprintf(name, sizeof(name), "PixelMini %02X%02X%02X", sn[3], sn[4], sn[5]);
+
+		// Генерируем приватные ключи
+		auto &key = Obj().security.dev_01.key;
+		esp_fill_random(key, sizeof(key));
+		
+		Obj().security.init = true;
+		
+		Save();
+
+		// Показываем SN и KEY и зависаем.
+		Logger.PrintTopic("Crypto").Print("sn: ").Print(sn, sizeof(sn), LOG_OUT_TYPE_HEX).PrintNewLine();
+		Logger.PrintTopic("Crypto").Print("key: ").Print(key, sizeof(key), LOG_OUT_TYPE_HEX).PrintNewLine();
+		while(true){}
+	}
 	
 	
 	inline void Setup()
 	{
 		EEPROM.begin(256);
 		Load();
-
-
-		// Временное наполнение данных
-		const uint8_t sn[32] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
-		memcpy(body.security.sn, sn, sizeof(body.security.sn));
-		const uint8_t key[32] = {0x8F, 0x3D, 0x7A, 0x1B, 0xC4, 0x5E, 0x92, 0x0D, 0x6F, 0x4A, 0x2B, 0xEC, 0xD1, 0x83, 0x75, 0x9A, 0x14, 0xFE, 0x60, 0xBB, 0x29, 0xC7, 0x53, 0xA8, 0x4E, 0xD0, 0x31, 0x9F, 0x62, 0xB5, 0x7C, 0xE6};
-		memcpy(body.security.dev_01.key, key, sizeof(body.security.dev_01.key));
-		const char name[] = "DragonPixel1234";
-		memcpy(body.security.name, name, sizeof(name));
 		
 		return;
 	}

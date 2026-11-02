@@ -1,10 +1,12 @@
 #pragma once
+#include <L3Fid.hpp>
+
 /*
 	Протокол скриптов ESP32 ⇄ server.js — сторона ESP. Описание протокола: SCRIPTS_PROTOCOL.md.
 	Подключается в конце ScriptLogic.h (нужны его функции флеш-памяти и ScriptMapObj).
 
-	Запрос: [fId 0x1B][cmd][поля…]
-	Ответ:  [fId 0x1B][cmd | 0x80][status][поля…]
+	Запрос: [fId FID_SCRIPT_CTRL][cmd][поля…]
+	Ответ:  [fId FID_SCRIPT_CTRL][cmd | 0x80][status][поля…]
 	Длину сообщения передаёт драйвер L3. Структуры ниже — сообщения целиком, поле данных всегда последнее.
 
 	Источник правды — скрипты, загруженные в PSRAM (то, что исполняется): LIST, INFO, READ, ENABLE.
@@ -27,7 +29,7 @@ namespace ScriptProto
 {
 	using namespace ScriptLogic;
 
-	static constexpr uint8_t FID = 0x1B;
+	static constexpr uint8_t FID = L3Fid::FID_SCRIPT_CTRL;
 	static constexpr uint8_t RESP_BIT = 0x80;
 
 	// Сообщение (fId + данные) — не больше DATA L3 минус байт len и не больше 255

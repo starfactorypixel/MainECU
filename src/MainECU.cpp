@@ -8,7 +8,6 @@
 #include "About.h"
 #include "Leds.h"
 #include "Config.h"
-#include "Security.h"
 
 #include <StateDB.h>
 #include <L2Wrapper.h>
@@ -240,7 +239,6 @@ esp_pm_configure(&pm_config);
 	About::Setup();
 	Leds::Setup();
 	Config::Setup();
-	Security::Setup();
 	CANCore::Setup();
 	SPICore::Setup();
 	Analog::Setup();
@@ -328,7 +326,6 @@ void loop()
 	About::Loop(current_time);
 	Leds::Loop(current_time);
 	Config::Loop(current_time);
-	Security::Loop(current_time);
 	CANCore::Loop(current_time);
 	SPICore::Loop(current_time);
 	Analog::Loop(current_time);
@@ -362,7 +359,7 @@ void loop()
 		// Получаем подписанные устройства для id и отправляем данные
 		uint8_t subs = SubsDB.GetDevices(id);
 
-		L3Fid::can_packet_t packet = {};
+		L3Fid::can_msg_t packet = {};
 		packet.can_id = id;
 		packet.SetData(obj.data, obj.length);
 		L3ManagerObj.AddPacket(subs, (uint8_t *)&packet, packet.GetLen());
@@ -412,10 +409,11 @@ void L3OnClose(L3Driver *driver, L3DriverInterface::close_reason_t reason)
 void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 {
 	L3DriverInterface::dev_type_t dev_type = driver->GetType();
+	L3Fid::fid_t fId = (L3Fid::fid_t)msg[0];
 	
-	switch(msg[0])
+	switch(fId)
 	{
-		case 0x12:
+		case L3Fid::FID_SUBSCRIBE:
 		{
 			const uint8_t count = msg[1];
 			const uint8_t *data = &msg[2];
@@ -438,7 +436,7 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 					{
 						// Отправляем в устройство текущее значение.
 						
-						L3Fid::can_packet_t packet = {};
+						L3Fid::can_msg_t packet = {};
 						packet.can_id = id;
 						packet.SetData(db_obj.data, db_obj.length);
 						driver->AddPacket((uint8_t *)&packet, packet.GetLen());
@@ -474,10 +472,10 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 			break;
 		}
 		
-		// Пакет can_packet_t от L3 устройства
-		case 0x35:
+		// Пакет can_msg_t от L3 устройства
+		case L3Fid::FID_CAN_MSG:
 		{
-			const L3Fid::can_packet_t *packet = (const L3Fid::can_packet_t *)msg;
+			const L3Fid::can_msg_t *packet = (const L3Fid::can_msg_t *)msg;
 			
 			DEBUG_LOG_TOPIC("L3_ReqEvent", "ID: %d, %RawPacket(%d): ", packet->can_id, packet->length);
 			DEBUG_LOG_ARRAY_HEX(nullptr, packet->data, packet->length);
@@ -499,7 +497,7 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 			break;
 		}
 
-		case 0x1B:
+		case L3Fid::FID_SCRIPT_CTRL:
 		{
 			uint8_t tx[ScriptProto::MSG_MAX];
 			uint16_t tx_len;

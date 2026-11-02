@@ -1,6 +1,6 @@
 #pragma once
 #include <inttypes.h>
-#include <L3PacketTypes.h>
+#include <L3Fid.hpp>
 #include <CUtils.h>
 
 class L3BlockInfoDB
@@ -16,8 +16,8 @@ class L3BlockInfoDB
 	using callback_lost_t = void (*)(/*const */uint8_t *data, uint8_t length);
 
 	// Состояние flags_rx_ переменных, когда полностью получены соотвествующие пакеты.
-	static constexpr uint8_t flags_rx_static_filled = (1 << ((sizeof(L3PacketTypes::block_info_t::istatic) + 5) / 6)) - 1;
-	static constexpr uint8_t flags_rx_dynamic_filled = (1 << ((sizeof(L3PacketTypes::block_info_t::idynamic) + 5) / 6)) - 1;
+	static constexpr uint8_t flags_rx_static_filled = (1 << ((sizeof(L3Fid::block_info_t::istatic) + 5) / 6)) - 1;
+	static constexpr uint8_t flags_rx_dynamic_filled = (1 << ((sizeof(L3Fid::block_info_t::idynamic) + 5) / 6)) - 1;
 	
 	struct blocks_info_t
 	{
@@ -38,13 +38,13 @@ class L3BlockInfoDB
 		uint32_t dynamic_req_time;
 		
 		uint32_t blockinfo_time;			// Время последнего обновления block_info_x
-		L3PacketTypes::block_info_t blockinfo = {};
+		L3Fid::block_info_t blockinfo = {};
 
 		uint32_t heartbeat_time;			// Время последнего heartbeat пакета
 		uint8_t heartbeat_counter;			// Счётчик последнего heartbeat пакета
 	} _blocks[_max_block];
 
-	RingBuffer<_max_block * 4, L3PacketTypes::block_error_t> errors;
+	RingBuffer<_max_block * 4, L3Fid::block_error_t> errors;
 
 
 	
@@ -57,8 +57,8 @@ class L3BlockInfoDB
 		L3BlockInfoDB() : _blocks{}
 		{
 			sizeof(_blocks);
-			sizeof(L3PacketTypes::block_info_t);
-			sizeof(L3PacketTypes::block_error_t);
+			sizeof(L3Fid::block_info_t);
+			sizeof(L3Fid::block_error_t);
 		}
 
 		void SetCanSendFunc(func_cansend_t callback)
@@ -188,9 +188,9 @@ class L3BlockInfoDB
 					const uint8_t *data_ptr = &data[1];
 					const uint8_t data_len = length - 1;
 					
-					if(sizeof(L3PacketTypes::block_error_t::error) != data_len) return;
+					if(sizeof(L3Fid::block_error_t::error) != data_len) return;
 					
-					L3PacketTypes::block_error_t error = {};
+					L3Fid::block_error_t error = {};
 					error.baseId = base_id;
 					error.realId = id;
 					memcpy((uint8_t *)&error.error, data_ptr, data_len);
@@ -321,7 +321,7 @@ class L3BlockInfoDB
 			uint8_t error_count = errors.Count();
 			while(error_count-- > 0)
 			{
-				L3PacketTypes::block_error_t obj;
+				L3Fid::block_error_t obj;
 				if(errors.Read(obj) == false) break;
 				
 				_CallbackError((uint8_t *)&obj, sizeof(obj));

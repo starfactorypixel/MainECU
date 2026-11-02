@@ -5,7 +5,7 @@
 #include "L3ManagerInterface.hpp"
 #include "Packets/L3PacketRx.hpp"
 #include "Packets/L3PacketTx.hpp"
-#include "Packets/L3Fid.hpp"
+#include "L3Fid.hpp"
 
 /*
 Канал связи с одним клиентом.

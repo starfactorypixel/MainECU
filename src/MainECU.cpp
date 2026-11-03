@@ -50,13 +50,13 @@ L3Manager L3ManagerObj(l3_callbacks, &MyMillis);		// убрать MyMillis
 L3DriverDashboard L3DashboardObj;
 
 
-void OnBlockLost(uint8_t *data, uint8_t length);
-void OnBlockUpdate(uint8_t *data, uint8_t length);
-void OnBlockError(uint8_t *data, uint8_t length);
+void OnBlockCanSend(uint16_t id, uint8_t *data, uint8_t length);
+void OnBlockData(uint8_t *data, uint8_t length);
+void OnBlockError(uint16_t id, L3BlockInfoDB::error_t code);
 
 StateDB DB;
 L3SubscriptionDB SubsDB;
-L3BlockInfoDB BlockInfoDB;
+L3BlockInfoDB BlockInfoDB(&OnBlockCanSend, &OnBlockData, &OnBlockError);
 
 #if defined(USE_EMULATOR)
 #include <Emulator.h>
@@ -164,36 +164,26 @@ void DumpDB()
 
 // Колбеки обработчика BlockInfoDB //
 
-void OnCanSendData(uint16_t id, uint8_t *data, uint8_t length)
+void OnBlockCanSend(uint16_t id, uint8_t *data, uint8_t length)
 {
-	//DEBUG_LOG_TOPIC("BlockInfo", "CANSend: id: 0x%04X, fId: 0x%02X\n", id, data[0]);
-
-	L2.Send(id, data, length);
-}
-
-void OnBlockUpdate(uint8_t *data, uint8_t length)
-{
-	//DEBUG_LOG_TOPIC("BlockInfo", "L3Send data\n");
-
-	//L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 1, data, length);
-	L3ManagerObj.AddPacketCommit(L3DriverInterface::DEVTYPE_ALL, data, length);
-
-	return;
-}
-
-void OnBlockError(uint8_t *data, uint8_t length)
-{
-
-	return;
-}
-
-void OnBlockLost(uint8_t *data, uint8_t length)
-{
-	DEBUG_LOG_TOPIC("BlockInfo", "L3Send lost\n");
+	//DEBUG_LOG_TOPIC("OnBlock", "CanTx: id: 0x%04X, fId: 0x%02X, len: %d\n", id, data[0], length);
 	
-	//L3.Send(L3_DEVTYPE_ALL, L3_REQTYPE_NONE05, 2, data, length);
-	L3ManagerObj.AddPacketCommit(L3DriverInterface::DEVTYPE_ALL, data, length);
+	L2.Send(id, data, length);
+	return;
+}
 
+void OnBlockData(uint8_t *data, uint8_t length)
+{
+	//DEBUG_LOG_TOPIC("OnBlock", "Data: fId: 0x%02X, len: %d\n", data[0], length);
+	
+	L3ManagerObj.AddPacketCommit(L3DriverInterface::DEVTYPE_ALL, data, length);
+	return;
+}
+
+void OnBlockError(uint16_t id, L3BlockInfoDB::error_t code)
+{
+	DEBUG_LOG_TOPIC("OnBlock", "Error: id: 0x%04X, code: 0x%02X\n", id, code);
+	
 	return;
 }
 
@@ -294,23 +284,8 @@ esp_pm_configure(&pm_config);
 	disableCore0WDT();
 	disableCore1WDT();
 	disableLoopWDT();
-	
 
 
-
-
-
-
-	BlockInfoDB.SetCanSendFunc(OnCanSendData);
-	BlockInfoDB.SetUpdateCallback(OnBlockUpdate);
-	BlockInfoDB.SetErrorCallback(OnBlockError);
-	BlockInfoDB.SetLostCallback(OnBlockLost);
-
-
-
-
-
-    
     return;
 }
 
@@ -601,7 +576,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			*/
 		//}
 
-		BlockInfoDB.ISR_CanRx(request.id, request.data, request.length, time);
+		BlockInfoDB.ISR_CanRx(request.id, request.data, request.length);
 
 		static constexpr bool filter_table[256] = 
 		{

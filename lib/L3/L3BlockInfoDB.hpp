@@ -36,7 +36,7 @@ class L3BlockInfoDB
 	static constexpr tick_t _dynamic_period = 5000;			// Период запроса dynamic части, мс
 	static constexpr tick_t _req_interval = 5;				// Минимальный интервал между запросами в CAN, мс
 	static constexpr uint8_t _hb_step_max = 3;				// Наибольший шаг counter heartbeat без перезагрузки: ~ _lost_timeout / период heartbeat
-	static constexpr RingBufferIndex_T _frames_size = 64;	// Очередь кадров из ISR. Степень двойки, вмещает _frames_size - 1
+	static constexpr RingBufferIndex_T _frames_size = 64;	// Очередь кадров из ISR. Степень двойки, столько кадров вмещает
 
 	// Интервалы должны быть меньше половины диапазона tick_t (запас на редкий вызов Processing).
 	// Если нужны интервалы больше ~32 с — сменить tick_t на uint32_t.
@@ -103,9 +103,6 @@ class L3BlockInfoDB
 		L3BlockInfoDB(func_cansend_t can_send, callback_data_t data_callback, callback_error_t error_callback) :
 			_blocks{}, _FuncCanSend(can_send), _CallbackData(data_callback), _CallbackError(error_callback)
 		{
-			// У RingBuffer нет конструктора, индексы нулевые только у статического объекта
-			_frames.Clear();
-
 			for(uint8_t i = 0; i < _max_block; ++i)
 			{
 				_blocks[i].blockinfo.baseId = (can_id_t)(i << _block_shift);

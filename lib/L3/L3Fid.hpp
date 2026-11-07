@@ -27,7 +27,7 @@ namespace L3Fid
 	};
 
 
-	// Beacon передаётся без хвоста имени: BEACON_HEAD_LEN + length байт (12..44)
+	// Beacon передаётся без хвоста имени: BEACON_HEAD_LEN + length байт
 	structpack beacon_t
 	{
 		uint8_t fId;			// FID_BEACON

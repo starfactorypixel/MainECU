@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-L3-клиент для ESP32 по UART: подключение по beacon (accept), ответы на пинги, отправка данных
+L3-клиент для ESP32 по UART или BLE: подключение по beacon (accept), ответы на пинги, отправка данных
 в форматах RAW / SIGN / ENCRYPT и проверочные «атаки» (повтор, подделка, чужой ключ...).
 
-Зависимости:  pip install pyserial cryptography
+Зависимости:  pip install pyserial cryptography        (UART)
+              pip install bleak cryptography           (BLE)
 
 Примеры:
     python l3_client.py --port COM5 --key 00112233...eeff
     python l3_client.py --port /dev/ttyUSB0 --key-file key.hex --format encrypt
     python l3_client.py --port COM5 --monitor            # только слушать, без ключа тоже можно
+    python l3_client.py --ble --key-file key.hex         # BLE: найти устройство по рекламе, формат ENCRYPT
+    python l3_client.py --ble --sn 0102030405060708 --key-file key.hex
+
+BLE: устройство ищется по рекламе (Company ID 0xFFFF + "PX" + SN), сервис Nordic UART. Одно уведомление
+или одна запись — один кадр. Соединение рвётся (ESP: нет сеанса 10 с, пинги без ответа) — клиент
+подключается заново сам.
 
 Команды в консоли (help — список):
     10 01 02 ff            отправить сообщение (hex, первый байт — fId), длина перед ним добавится сама
@@ -28,6 +35,7 @@ ESP на отклонённые пакеты ничего не отвечает.
 
 import argparse
 import os
+import queue
 import struct
 import sys
 import threading
@@ -36,7 +44,7 @@ import time
 try:
     import serial
 except ImportError:
-    sys.exit("Нужен pyserial:  pip install pyserial cryptography")
+    serial = None               # нужен только для UART: проверка в main()
 try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 except ImportError:
@@ -254,6 +262,236 @@ def hx(b: bytes) -> str:
     return b.hex(" ")
 
 
+# ---------------------------------------------------------------- транспорт BLE
+
+NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"    # запись: клиент -> ESP
+NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"    # уведомления: ESP -> клиент
+BLE_COMPANY_ID = 0xFFFF
+BLE_MTU_MIN = HEADER_LEN + PAYLOAD_MAX + CRC_LEN + 3    # кадр 164 байт целиком в одном уведомлении: 167
+
+
+class BlePort:
+    """BLE с тем же интерфейсом, что у serial.Serial (read / in_waiting / write / close): Client не меняется.
+    bleak работает в своём потоке с asyncio; уведомления складываются в буфер, read() их отдаёт."""
+
+    def __init__(self, address=None, sn=None, log=print):
+        import asyncio
+        try:
+            import bleak
+        except ImportError:
+            sys.exit("Нужен bleak:  pip install bleak cryptography")
+        self.asyncio = asyncio
+        self.bleak = bleak
+        self.log = log
+        self.want_address = address.upper() if address else None
+        self.want_sn = sn.lower() if sn else None
+        self.loop = asyncio.new_event_loop()
+        threading.Thread(target=self.loop.run_forever, daemon=True).start()
+        self.buf = bytearray()
+        self.cv = threading.Condition()
+        self.client = None
+        self.address = None             # выбранное устройство: к нему же подключаемся заново
+        self.connected = False
+        self.closing = False
+        self.reconnecting = False       # цикл переподключения уже идёт: второй не запускать
+        self.disconnected = False       # для Client.reader: сбросить сеанс
+
+    def _run(self, coro, timeout=None):
+        return self.asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout)
+
+    # --- поиск
+
+    async def _scan(self, seconds):
+        found = await self.bleak.BleakScanner.discover(timeout=seconds, return_adv=True)
+        out = []
+        for dev, adv in found.values():
+            md = (adv.manufacturer_data or {}).get(BLE_COMPANY_ID)
+            if md and md[:2] == HEAD and len(md) >= 10:
+                out.append((dev, md[2:10].hex(), adv.local_name or dev.name or "", adv.rssi))
+        return out
+
+    def _match(self, item):
+        dev, sn, name, rssi = item
+        if self.want_address and dev.address.upper() != self.want_address:
+            return False
+        if self.want_sn and sn != self.want_sn:
+            return False
+        return True
+
+    def find(self):
+        """Найти устройство по рекламе. Несколько подходящих — спросить, какое. Возвращает BLEDevice."""
+        while True:
+            self.log("BLE: поиск устройств (0xFFFF + PX)...")
+            try:
+                items = [i for i in self._run(self._scan(4.0)) if self._match(i)]
+            except Exception as e:
+                # Нет адаптера, он выключен или не умеет BLE (роль central): дальше пробовать бессмысленно
+                sys.exit("BLE недоступен: %s\n"
+                         "Проверьте, что Bluetooth включён и адаптер поддерживает Bluetooth 4.0+ (BLE). "
+                         "Подойдёт любой USB-адаптер Bluetooth 5.0." % (e or type(e).__name__))
+            if items:
+                break
+            self.log("BLE: не найдено, ищем ещё")
+        items.sort(key=lambda i: -(i[3] or -999))
+        for k, (dev, sn, name, rssi) in enumerate(items):
+            self.log("  %d) %s  SN %s  «%s»  RSSI %s" % (k + 1, dev.address, sn, name, rssi))
+        pick = 0
+        if len(items) > 1:
+            while True:
+                try:
+                    out_flush()     # список должен быть на экране до вопроса
+                    pick = int(input("номер устройства: ")) - 1
+                    if 0 <= pick < len(items):
+                        break
+                except ValueError:
+                    pass
+        dev, sn, name, rssi = items[pick]
+        self.address = dev.address
+        self.want_address = dev.address.upper()     # переподключение — только к нему
+        self.log("BLE: выбрано %s, SN %s «%s» (SN и имя из рекламы не проверены)" % (dev.address, sn, name))
+        return dev
+
+    # --- соединение
+
+    async def _connect(self, dev):
+        # Рабочим (self.client) соединение становится только целиком: подключено и уведомления включены.
+        # Неудачная попытка закрывается и не подменяет рабочее соединение (иначе запись уйдёт не туда)
+        # use_cached_services=False: Windows при быстром переподключении отдаёт устаревший список сервисов
+        client = self.bleak.BleakClient(dev, disconnected_callback=self._on_disconnect,
+                                        winrt={"use_cached_services": False})
+        try:
+            await client.connect(timeout=15.0)
+            backend = getattr(client, "_backend", None)
+            if backend is not None and hasattr(backend, "_acquire_mtu"):    # BlueZ: узнать настоящий MTU
+                try:
+                    await backend._acquire_mtu()
+                except Exception:
+                    pass
+            mtu = client.mtu_size
+            await client.start_notify(NUS_TX, self._on_notify)     # ESP после этого сразу шлёт beacon
+        except BaseException:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            raise
+        self.client = client
+        self.connected = True
+        return mtu
+
+    def connect(self, dev):
+        while True:
+            try:
+                mtu = self._run(self._connect(dev), timeout=30)
+                self.log("BLE: подключено, MTU %d%s, уведомления включены — ждём beacon"
+                         % (mtu, "" if mtu >= BLE_MTU_MIN else " (меньше %d: ESP не будет слать кадры)" % BLE_MTU_MIN))
+                return
+            except Exception as e:
+                self.log("BLE: не подключились (%s), повтор через 1 с" % (e or type(e).__name__))
+                time.sleep(1.0)
+
+    def _on_notify(self, sender, data):
+        with self.cv:
+            self.buf += data
+            self.cv.notify()
+
+    def _on_disconnect(self, client):
+        if client is not self.client or not self.connected:
+            return                      # неудачная попытка или уже обработано
+        self.connected = False
+        self.disconnected = True
+        if self.closing or self.reconnecting:
+            return
+        self.log("BLE: соединение разорвано — подключаемся заново")
+        self.reconnecting = True
+        self.loop.create_task(self._reconnect())
+
+    async def _reconnect(self):
+        try:
+            await self.asyncio.sleep(1.0)
+            while not self.closing:
+                items = [i for i in await self._scan(4.0) if self._match(i)]
+                if not items:
+                    self.log("BLE: устройство не видно (может быть занято другим телефоном), ищем ещё")
+                    continue
+                try:
+                    mtu = await self._connect(items[0][0])
+                    self.log("BLE: подключено заново, MTU %d — ждём beacon" % mtu)
+                    return
+                except Exception as e:
+                    self.log("BLE: не подключились (%s), повтор через 2 с" % (e or type(e).__name__))
+                    await self.asyncio.sleep(2.0)
+        finally:
+            self.reconnecting = False
+
+    def take_disconnect(self):
+        if self.disconnected:
+            self.disconnected = False
+            with self.cv:
+                self.buf.clear()
+            return True
+        return False
+
+    # --- интерфейс serial.Serial
+
+    @property
+    def in_waiting(self):
+        return len(self.buf)
+
+    def read(self, n=1):
+        with self.cv:
+            if not self.buf:
+                self.cv.wait(0.02)
+            out = bytes(self.buf[:n])
+            del self.buf[:n]
+            return out
+
+    def write(self, data):
+        if not self.connected:
+            self.log("BLE: нет соединения — кадр не отправлен")
+            return
+        try:
+            self._run(self.client.write_gatt_char(NUS_RX, bytes(data), response=False), timeout=5)
+        except Exception as e:
+            self.log("BLE: запись не удалась: %s" % (e or type(e).__name__))
+
+    def close(self):
+        self.closing = True
+        if self.client is not None and self.connected:
+            try:
+                self._run(self.client.disconnect(), timeout=5)
+            except Exception:
+                pass
+        self.loop.call_soon_threadsafe(self.loop.stop)
+
+
+# ---------------------------------------------------------------- вывод
+
+# Печать — в отдельном потоке через очередь. Если консоль «заморожена» (в Windows — выделение мышью),
+# print блокируется; без очереди вместе с ним встали бы приём кадров и ответы на пинги, и ESP закрыл бы сеанс
+_out_q = queue.Queue()
+
+
+def _out_worker():
+    while True:
+        line = _out_q.get()
+        print(line, flush=True)
+
+
+threading.Thread(target=_out_worker, daemon=True).start()
+
+
+def out(text):
+    t = time.strftime("%H:%M:%S") + ".%03d" % (int(time.time() * 1000) % 1000)
+    _out_q.put("%s  %s" % (t, text))
+
+
+def out_flush(timeout=1.0):
+    end = time.monotonic() + timeout
+    while not _out_q.empty() and time.monotonic() < end:
+        time.sleep(0.01)
+
+
 # ---------------------------------------------------------------- клиент
 
 class Client:
@@ -312,8 +550,7 @@ class Client:
     # --- вывод
 
     def log(self, text):
-        t = time.strftime("%H:%M:%S") + ".%03d" % (int(time.time() * 1000) % 1000)
-        print("%s  %s" % (t, text), flush=True)
+        out(text)
 
     def on_junk(self, data):
         self.junk_line += data
@@ -491,6 +728,11 @@ class Client:
                 self.log("ошибка порта: %s" % e)
                 self.stop.set()
                 return
+            if getattr(self.port, "take_disconnect", None) and self.port.take_disconnect():
+                # BLE: соединение порвалось. Сеанс и недособранный кадр — в прошлом, ждём beacon нового подключения
+                self.reset_session()
+                self.parser = FrameParser()
+                continue
             for kind, item in self.parser.feed(chunk) if chunk else self.parser.feed(b""):
                 if kind == "frame":
                     try:
@@ -606,23 +848,39 @@ def load_key(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="L3-клиент ESP32 по UART")
-    ap.add_argument("--port", required=True, help="COM5, /dev/ttyUSB0 ...")
+    ap = argparse.ArgumentParser(description="L3-клиент ESP32 по UART или BLE")
+    ap.add_argument("--port", help="UART: COM5, /dev/ttyUSB0 ...")
     ap.add_argument("--baud", type=int, default=921600, help="скорость (по умолчанию как в L3DriverDashboard: 921600)")
+    ap.add_argument("--ble", action="store_true", help="BLE вместо UART: устройство ищется по рекламе")
+    ap.add_argument("--address", help="BLE: адрес устройства (иначе — по рекламе, при нескольких спросит)")
+    ap.add_argument("--sn", help="BLE: SN устройства, 16 hex-символов")
     ap.add_argument("--key", help="ключ, 64 hex-символа")
     ap.add_argument("--key-file", help="файл с ключом в hex")
-    ap.add_argument("--format", default="sign", choices=sorted(FMT_BY_NAME), help="формат отправки")
+    ap.add_argument("--format", choices=sorted(FMT_BY_NAME), help="формат отправки (по умолчанию UART — sign, BLE — encrypt)")
     ap.add_argument("--data-max", type=int, default=0, help="лимит DATA канала, байт (0 — без лимита, как UART)")
     ap.add_argument("--monitor", action="store_true", help="только слушать: без сеанса и ответов на пинги")
     ap.add_argument("--verbose", "-v", action="store_true", help="печатать кадры целиком в hex")
     args = ap.parse_args()
+    if not args.ble and not args.port:
+        ap.error("нужен --port (UART) или --ble")
+    fmt_name = args.format or ("encrypt" if args.ble else "sign")
 
     key = load_key(args)
-    port = serial.Serial(args.port, args.baud, timeout=0.02)
-    client = Client(port, key, FMT_BY_NAME[args.format], monitor=args.monitor, verbose=args.verbose, data_max=args.data_max)
-    client.log("порт %s @ %d, формат %s, ключ %s%s" % (args.port, args.baud, FMT_NAMES[client.fmt],
-                                                         "задан" if key else "НЕ задан (только RAW и просмотр)",
-                                                         ", режим монитора" if args.monitor else ""))
+    if args.ble:
+        port = BlePort(args.address, args.sn, log=out)
+        dev = port.find()
+        where = "BLE %s" % dev.address
+    else:
+        if serial is None:
+            sys.exit("Нужен pyserial:  pip install pyserial cryptography")
+        port = serial.Serial(args.port, args.baud, timeout=0.02)
+        where = "порт %s @ %d" % (args.port, args.baud)
+    client = Client(port, key, FMT_BY_NAME[fmt_name], monitor=args.monitor, verbose=args.verbose, data_max=args.data_max)
+    client.log("%s, формат %s, ключ %s%s" % (where, FMT_NAMES[client.fmt],
+                                           "задан" if key else "НЕ задан (только RAW и просмотр)",
+                                           ", режим монитора" if args.monitor else ""))
+    if args.ble:
+        port.connect(dev)
     client.log("ждём beacon... (help — команды)")
 
     th = threading.Thread(target=client.reader, daemon=True)
@@ -642,6 +900,7 @@ def main():
     client.stop.set()
     th.join(timeout=1)
     port.close()
+    out_flush()
 
 
 if __name__ == "__main__":

@@ -8,9 +8,10 @@ TODO
 	- L3PacketRx::Reset() (Clear очереди payload) — только при остановленной задаче приёма.
 
 СДЕЛАНО
-	- Барьеры памяти в очереди payload (L3PacketPayload): задача приёма и runtime могут работать на разных
-	  ядрах ESP32-S3. __atomic_thread_fence(RELEASE) — перед сдвигом _head и _tail, (ACQUIRE) — после
-	  проверок IsFull() / IsEmpty(). На Xtensa это memw, один раз на кадр.
+	- Барьеры памяти в CUtils RingBuffer (на нём очередь payload L3PacketPayload): задача приёма и runtime
+	  могут работать на разных ядрах ESP32-S3. Барьеры внутри буфера (WriteSlot / CommitWrite / ReadSlot,
+	  Write / Read / Peek / DeleteOne), L3PacketPayload — тонкая обёртка. Индексы свободные: заняты могут быть
+	  все SIZE элементов (очередь payload — 64 кадра).
 	- Привязка пакетов клиента к сеансу ESP: клиент дописывает в конец AAD 4 байта идентификатора сеанса
 	  (IV beacon [8..11]), в эфир они не идут. Идентификатор новый при запуске, при закрытии сеанса и на
 	  каждом beacon, пока сеанса нет. Защищает от повтора пакетов прошлого запуска (эпоха не успела

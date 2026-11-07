@@ -14,6 +14,7 @@
 #include "CANCore.h"
 #include <L3Manager.hpp>
 #include <Drivers/L3DriverDashboard.hpp>
+#include <Drivers/L3DriverBLE.hpp>
 #include <L3SubscriptionDB.h>
 #include <L3BlockInfoDB.hpp>
 
@@ -48,6 +49,7 @@ void L3OnError(L3Driver *driver, L3C::error_t error);
 const L3Manager::callbacks_t l3_callbacks = {&L3OnOpen, &L3OnClose, &L3OnRx, &L3OnError};
 L3Manager L3ManagerObj(l3_callbacks, &MyMillis);		// убрать MyMillis
 L3DriverDashboard L3DashboardObj;
+L3DriverBLE L3DriverBLEObj;
 
 
 void OnBlockCanSend(uint16_t id, uint8_t *data, uint8_t length);
@@ -267,6 +269,7 @@ esp_pm_configure(&pm_config);
     
 
 	L3ManagerObj.AddDriver(L3DashboardObj);
+	//L3ManagerObj.AddDriver(L3DriverBLEObj);
 
 
 

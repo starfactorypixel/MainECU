@@ -39,11 +39,11 @@ CRC считается последним и не защищает от подд
 	static constexpr uint16_t PACKET_IV_LEN = 12U;
 	static constexpr uint16_t PACKET_TAG_LEN = 16U;
 	static constexpr uint16_t PACKET_DATA_LEN_MAX = 128U;
-	static constexpr uint16_t PACKET_PAYLOAD_RAW_LEN = PACKET_IV_LEN + PACKET_DATA_LEN_MAX + PACKET_TAG_LEN;	// 156
+	static constexpr uint16_t PACKET_PAYLOAD_RAW_LEN = PACKET_IV_LEN + PACKET_DATA_LEN_MAX + PACKET_TAG_LEN;
 	static constexpr uint16_t PACKET_CRC_LEN = 2U;
 	static constexpr uint16_t PACKET_AAD_BIND_LEN = 4U;		// идентификатор сеанса в конце AAD пакетов клиента
-	static constexpr uint16_t PACKET_LEN_MIN = PACKET_HEADER_LEN + PACKET_CRC_LEN;							// 8
-	static constexpr uint16_t PACKET_LEN_MAX = PACKET_HEADER_LEN + PACKET_PAYLOAD_RAW_LEN + PACKET_CRC_LEN;	// 172
+	static constexpr uint16_t PACKET_LEN_MIN = PACKET_HEADER_LEN + PACKET_CRC_LEN;
+	static constexpr uint16_t PACKET_LEN_MAX = PACKET_HEADER_LEN + PACKET_PAYLOAD_RAW_LEN + PACKET_CRC_LEN;
 
 	static constexpr uint8_t PACKET_VERSION = 0x02;
 	static constexpr uint8_t PACKET_HEAD_0 = 'P';

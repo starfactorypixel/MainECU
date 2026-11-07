@@ -23,6 +23,11 @@ Beacon: каждые _cfg.beacon_interval мс, всегда SIGN, незави�
 	  Все пакеты закрытого сеанса (в том числе недоставленные) перестают проходить проверку подписи,
 	  клиент видит новый идентификатор в следующем beacon и подключается заново;
 	- ping_interval == 0 -> пингов нет, сеанс закрывает только транспорт (_TransportClosed, CLOSE_TRANSPORT).
+
+Транспорт с подключением (_cfg.link, BLE): клиента нет, пока транспорт не сообщил _TransportOpened().
+	- beacon только между _TransportOpened() и _TransportClosed(); первый — сразу при открытии, с него же
+	  отсчитывается интервал (два подряд не уходят);
+	- соединение без сеанса (нет ключа, молчит) рвёт сам драйвер транспорта.
 */
 class L3Driver : public L3DriverInterface
 {
@@ -90,6 +95,7 @@ class L3Driver : public L3DriverInterface
 			memset(&_state, 0x00, sizeof(_state));
 			_state.state = DEVSTATE_IDLE;
 			_transport_closed = false;
+			_transport_opened = false;
 
 			_packet_tx.Clear();		// недособранный исходящий пакет выбрасывается, формат канала сохраняется
 			_packet_rx.Reset();
@@ -153,17 +159,30 @@ class L3Driver : public L3DriverInterface
 			if(_transport_closed)
 			{
 				_transport_closed = false;
+				_state.link_open = false;
 				if(_state.state == DEVSTATE_ACTIVE)
 					_CloseSession(CLOSE_TRANSPORT);
+			}
+
+			// Открытие — после обрыва: обрыв и новое подключение между двумя вызовами отрабатываются по порядку
+			bool beacon_now = false;
+			if(_transport_opened)
+			{
+				_transport_opened = false;
+				_state.link_open = true;
+				beacon_now = true;
 			}
 
 			if(_state.state == DEVSTATE_ACTIVE)
 				_CheckLink(time);
 
-			if(_cfg.beacon_interval > 0 && time - _state.beacon_time >= _cfg.beacon_interval)
+			if(_cfg.beacon_interval > 0 && (_cfg.link == false || _state.link_open))
 			{
-				_state.beacon_time = time;
-				_SendBeacon();
+				if(beacon_now || time - _state.beacon_time >= _cfg.beacon_interval)
+				{
+					_state.beacon_time = time;
+					_SendBeacon();
+				}
 			}
 
 			return;
@@ -179,6 +198,7 @@ class L3Driver : public L3DriverInterface
 			uint16_t idle = 1000;				// Пауза в пакетах клиента до первого пинга, мс
 			uint16_t ping_interval = 1000;		// Интервал между пингами, мс. 0 — пинги выключены
 			uint8_t ping_retries = 3;			// Пингов без ответа до закрытия сеанса
+			bool link = false;					// Транспорт с подключением (BLE): beacon только при открытом транспорте
 		};
 
 		// Формат канала. Вызывается один раз, в конструкторе драйвера
@@ -222,10 +242,20 @@ class L3Driver : public L3DriverInterface
 			return err;
 		}
 
+		// Транспорт готов принимать и отправлять (BLE: подключён, уведомления включены, MTU достаточный).
+		// Можно вызывать из любого контекста: здесь только флаг, beacon уйдёт в ближайшем Processing()
+		void _TransportOpened()
+		{
+			_transport_opened = true;
+
+			return;
+		}
+
 		// Транспорт сообщил об обрыве (BT disconnect, TCP закрыт). Можно вызывать из любого контекста:
 		// здесь только флаг, сеанс закроется в ближайшем Processing() (CLOSE_TRANSPORT)
 		void _TransportClosed()
 		{
+			_transport_opened = false;	// открытие, ещё не обработанное Processing(), отменяется
 			_transport_closed = true;
 
 			return;
@@ -252,7 +282,7 @@ class L3Driver : public L3DriverInterface
 
 	private:
 
-		static constexpr uint16_t DATA_MIN_BEACON = 1 + sizeof(L3Fid::beacon_t);	// [len] + beacon с именем 32 байта = 45
+		static constexpr uint16_t DATA_MIN_BEACON = 1 + sizeof(L3Fid::beacon_t);	// [len] + beacon с полным именем
 
 		struct state_t
 		{
@@ -263,6 +293,7 @@ class L3Driver : public L3DriverInterface
 			uint32_t ping_time;			// Время последнего пинга, мс
 			uint8_t pings;				// Отправлено пингов без ответа
 			uint32_t beacon_time;		// Время последнего beacon, мс
+			bool link_open;				// Транспорт открыт (_cfg.link)
 		};
 
 		void _Error(L3C::error_t error)
@@ -440,4 +471,5 @@ class L3Driver : public L3DriverInterface
 
 		state_t _state = {};
 		volatile bool _transport_closed = false;	// пишет транспорт (любой контекст), читает Processing()
+		volatile bool _transport_opened = false;	// то же
 };

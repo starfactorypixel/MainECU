@@ -13,7 +13,7 @@ namespace Config
 
 	struct config_t
 	{
-		uint8_t version = 3;
+		uint8_t version = 4;
 		config_body_t data = {};
 	} config_obj;
 	

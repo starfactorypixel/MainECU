@@ -1,6 +1,7 @@
 #pragma once
 #include <inttypes.h>
 #include <esp_system.h>
+#include "bootloader_random.h"
 #include <EEPROM.h>
 #include "ConfigData.h"
 #include <CUtils_Crypto.h>
@@ -13,7 +14,7 @@ namespace Config
 
 	struct config_t
 	{
-		uint8_t version = 4;
+		uint8_t version = 5;
 		config_body_t data = {};
 	} config_obj;
 	
@@ -57,32 +58,44 @@ namespace Config
 
 	void FirstSetup()
 	{
-		// Генерируем серийный номер
-		auto &sn = Obj().security.sn;
-		GetSerialNumber64(sn);
+		// Включаем TRNG
+		bootloader_random_enable();
 		
+		auto &security = Obj().security;
+		
+		// Генерируем серийный номер
+		auto &sn = security.sn;
+		GetSerialNumber64(sn);
+		Logger.PrintTopic("Crypto").Print("SN: ").Print(sn, sizeof(sn), LOG_OUT_TYPE_HEX).PrintNewLine();
+
 		// Генерируем имя по умолчанию
-		auto &name = Obj().security.name;
+		auto &name = security.name;
 		snprintf(name, sizeof(name), "PixelMini %02X%02X%02X", sn[3], sn[4], sn[5]);
 
 		// Генерируем приватные ключи
-		auto &key = Obj().security.dev_01.key;
-		esp_fill_random(key, sizeof(key));
+		for(uint8_t i = 0; i < 8; ++i)
+		{
+			auto &dev = security.devs[i];
+			dev.epoch = 0;
+			esp_fill_random(dev.key, sizeof(dev.key));
+			Logger.PrintTopic("Crypto").Printf("Dev: %d, key: ", (1U << i)).Print(dev.key, sizeof(dev.key), LOG_OUT_TYPE_HEX).PrintNewLine();
+		}
 		
-		Obj().security.init = true;
+		security.init = true;
 		
 		Save();
 
-		// Показываем SN и KEY и зависаем.
-		Logger.PrintTopic("Crypto").Print("sn: ").Print(sn, sizeof(sn), LOG_OUT_TYPE_HEX).PrintNewLine();
-		Logger.PrintTopic("Crypto").Print("key: ").Print(key, sizeof(key), LOG_OUT_TYPE_HEX).PrintNewLine();
+		// Выключаем TRNG
+		bootloader_random_disable();
+
+		// Зависаем
 		while(true){}
 	}
 	
 	
 	inline void Setup()
 	{
-		EEPROM.begin(256);
+		EEPROM.begin(512);
 		Load();
 		
 		return;

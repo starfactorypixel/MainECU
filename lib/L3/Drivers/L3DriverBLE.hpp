@@ -51,7 +51,7 @@ class L3DriverBLE : public L3Driver
 
 		virtual void Open() override
 		{
-			auto &cfg = Config::Obj().security.dev_02;	// ИМЕННО ссылка: и epoch, и key должны указывать в Config
+			auto &cfg = Config::Obj().security.devs[__builtin_ctz(_dev_type)];
 			_OpenChannel(cfg.key, &cfg.epoch);
 
 			Self() = this;

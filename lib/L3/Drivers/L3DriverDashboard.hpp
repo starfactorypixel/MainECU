@@ -26,8 +26,8 @@ class L3DriverDashboard : public L3Driver
 		
 		virtual void Open() override
 		{
-			auto &cfg = Config::Obj().security.dev_01;	// ИМЕННО ссылка: и epoch, и key должны указывать в Config
-			_OpenChannel(cfg.key, &cfg.epoch);			// ошибка уйдёт в колбэк error
+			auto &cfg = Config::Obj().security.devs[__builtin_ctz(_dev_type)];
+			_OpenChannel(cfg.key, &cfg.epoch);
 
 			const int uart_buffer_size = (1024 * 2);
 			

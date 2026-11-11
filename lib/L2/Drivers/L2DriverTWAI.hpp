@@ -11,21 +11,18 @@
 
 class L2DriverTWAI : public L2DriverInterface
 {
-	static constexpr uint32_t ALERTS = TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED | TWAI_ALERT_ERR_PASS | TWAI_ALERT_ERR_ACTIVE | TWAI_ALERT_RX_QUEUE_FULL;
+	static constexpr uint32_t ALERTS = TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED;
 
 	public:
-
+		
 		L2DriverTWAI()
 		{
-			//_filter = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-
 			return;
 		}
 
 		virtual ~L2DriverTWAI()
 		{
 			End();
-
 			return;
 		}
 
@@ -40,7 +37,6 @@ class L2DriverTWAI : public L2DriverInterface
 			return;
 		}
 
-		// ISR драйвера ставится на ядро, с которого вызван Begin(). Из setup() это ядро 1 (Wi-Fi живёт на ядре 0).
 		virtual bool Begin() override
 		{
 			if(_installed == true) return true;
@@ -55,7 +51,7 @@ class L2DriverTWAI : public L2DriverInterface
 
 			if(twai_driver_install(&g_config, &t_config, &_filter) != ESP_OK)
 				return false;
-
+			
 			if(twai_start() != ESP_OK)
 			{
 				twai_driver_uninstall();
@@ -63,18 +59,16 @@ class L2DriverTWAI : public L2DriverInterface
 			}
 
 			_installed = true;
-
+			
 			return true;
 		}
-
+		
 		virtual void End() override
 		{
-			if(_installed == false) return;
-
-			twai_stop();			// в состоянии bus-off/recovering вернёт ошибку — не важно
+			twai_stop();
 			twai_driver_uninstall();
 			_installed = false;
-
+			
 			return;
 		}
 
@@ -85,14 +79,14 @@ class L2DriverTWAI : public L2DriverInterface
 			twai_message_t msg;
 			if(twai_receive(&msg, 0) != ESP_OK)
 				return false;
-
+			
 			frame.id = msg.identifier;
 			frame.extended = msg.extd;
 			frame.rtr = msg.rtr;
 			frame.length = (msg.data_length_code > 8) ? 8 : msg.data_length_code;
 			if(frame.rtr == false)
 				memcpy(frame.data, msg.data, frame.length);
-
+			
 			return true;
 		}
 
@@ -107,11 +101,10 @@ class L2DriverTWAI : public L2DriverInterface
 			msg.data_length_code = (frame.length > 8) ? 8 : frame.length;
 			if(frame.rtr == false)
 				memcpy(msg.data, frame.data, msg.data_length_code);
-
+			
 			return (twai_transmit(&msg, 0) == ESP_OK);
 		}
 
-		// Неблокирующая обработка событий шины: восстановление после bus-off.
 		virtual void Poll() override
 		{
 			if(_installed == false) return;
@@ -119,19 +112,16 @@ class L2DriverTWAI : public L2DriverInterface
 			uint32_t alerts = 0;
 			if(twai_read_alerts(&alerts, 0) != ESP_OK)
 				return;
-
+			
 			if(alerts & TWAI_ALERT_BUS_OFF)
 			{
-				_stats->bus_off_count++;
-				twai_initiate_recovery();		// контроллер дождётся 128 × 11 рецессивных бит
+				_bus_off_count++;
+				twai_initiate_recovery();
 			}
+
 			if(alerts & TWAI_ALERT_BUS_RECOVERED)
 			{
-				twai_start();					// после восстановления драйвер в STOPPED
-			}
-			if(alerts & TWAI_ALERT_RX_QUEUE_FULL)
-			{
-				_stats->rx_drop_count++;			// loop не успевает разбирать очередь
+				twai_start();
 			}
 
 			return;
@@ -144,22 +134,57 @@ class L2DriverTWAI : public L2DriverInterface
 			twai_status_info_t info;
 			if(twai_get_status_info(&info) != ESP_OK)
 				return false;
-
+			
 			return (info.state == TWAI_STATE_RUNNING);
 		}
 
-		// Счётчики драйвера IDF: msgs_to_rx, msgs_to_tx, rx_missed_count, tx_failed_count, ошибки и т.д.
-		bool GetStatus(twai_status_info_t &info) const
+		virtual void GetStatistics(L2Statistics &stats) const override
 		{
-			if(_installed == false) return false;
+			stats.bus_off_count = _bus_off_count;
+			stats.state = L2_BUS_STOPPED;
 
-			return (twai_get_status_info(&info) == ESP_OK);
+			twai_status_info_t info;
+			if(_installed == false || twai_get_status_info(&info) != ESP_OK)
+				return;
+			
+			stats.rx_queue_overflow_count = info.rx_missed_count;
+			stats.rx_fifo_overrun_count = info.rx_overrun_count;
+			stats.tx_failed_count = info.tx_failed_count;
+			stats.arb_lost_count = info.arb_lost_count;
+			stats.bus_error_count = info.bus_error_count;
+
+			stats.rx_pending = (uint16_t)info.msgs_to_rx;
+			stats.tx_pending = (uint16_t)info.msgs_to_tx;
+			stats.tx_error_counter = (uint16_t)info.tx_error_counter;
+			stats.rx_error_counter = (uint16_t)info.rx_error_counter;
+
+			switch(info.state)
+			{
+				case TWAI_STATE_RUNNING:
+					stats.state = (info.tx_error_counter >= 128 || info.rx_error_counter >= 128) ? L2_BUS_PASSIVE : L2_BUS_ACTIVE;
+					break;
+				
+				case TWAI_STATE_BUS_OFF:
+					stats.state = L2_BUS_OFF;
+					break;
+				
+				case TWAI_STATE_RECOVERING:
+					stats.state = L2_BUS_RECOVERING;
+					break;
+				
+				case TWAI_STATE_STOPPED:
+				default:
+					stats.state = L2_BUS_STOPPED;
+					break;
+			}
+			
+			return;
 		}
 
-
 	private:
-
+		
 		twai_filter_config_t _filter = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
 		bool _installed = false;
+		uint32_t _bus_off_count = 0;
 };

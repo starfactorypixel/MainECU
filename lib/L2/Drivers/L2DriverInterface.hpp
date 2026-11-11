@@ -2,19 +2,10 @@
 #include <inttypes.h>
 #include "L2Consts.hpp"
 
-// Интерфейс драйвера CAN. L2Manager работает только через него.
-// Все методы обязаны быть неблокирующими.
 class L2DriverInterface
 {
 	public:
 		virtual ~L2DriverInterface() = default;
-
-		void Init(L2Statistics &stats)
-		{
-			_stats = &stats;
-
-			return;
-		}
 
 		virtual bool Begin() = 0;
 		virtual void End() = 0;
@@ -30,8 +21,8 @@ class L2DriverInterface
 
 		// Драйвер запущен и шина в рабочем состоянии.
 		virtual bool IsRunning() const = 0;
-
-	protected:
 		
-		L2Statistics *_stats;
+		// Заполнить поля статистики из блоков «Ведёт драйвер» (см. L2Statistics).
+		// Поля блока «Ведёт L2Manager» не трогать.
+		virtual void GetStatistics(L2Statistics &stats) const = 0;
 };

@@ -11,7 +11,15 @@
 
 class L2DriverTWAI : public L2DriverInterface
 {
-	static constexpr uint32_t ALERTS = TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED;
+	// TWAI_ALERT_RX_FIFO_OVERRUN есть не во всех версиях IDF
+#ifdef TWAI_ALERT_RX_FIFO_OVERRUN
+	static constexpr uint32_t ALERT_FIFO_OVERRUN = TWAI_ALERT_RX_FIFO_OVERRUN;
+#else
+	static constexpr uint32_t ALERT_FIFO_OVERRUN = 0;
+#endif
+
+	// TWAI_ALERT_AND_LOG не включать: печатает в лог прямо из ISR
+	static constexpr uint32_t ALERTS = TWAI_ALERT_TX_FAILED | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_RX_QUEUE_FULL | ALERT_FIFO_OVERRUN | TWAI_ALERT_ABOVE_ERR_WARN | TWAI_ALERT_ERR_PASS | TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED;
 
 	public:
 		
@@ -105,26 +113,37 @@ class L2DriverTWAI : public L2DriverInterface
 			return (twai_transmit(&msg, 0) == ESP_OK);
 		}
 
-		virtual void Poll() override
+		virtual uint32_t Poll() override
 		{
-			if(_installed == false) return;
+			uint32_t errors = L2_ERR_NONE;
+
+			if(_installed == false) return errors;
 
 			uint32_t alerts = 0;
 			if(twai_read_alerts(&alerts, 0) != ESP_OK)
-				return;
-			
+				return errors;
+
+			if(alerts & TWAI_ALERT_TX_FAILED)		errors |= L2_ERR_TX_FAILED;
+			if(alerts & TWAI_ALERT_BUS_ERROR)		errors |= L2_ERR_BUS_ERROR;
+			if(alerts & TWAI_ALERT_RX_QUEUE_FULL)	errors |= L2_ERR_RX_QUEUE_OVERFLOW;
+			if(alerts & ALERT_FIFO_OVERRUN)			errors |= L2_ERR_RX_FIFO_OVERRUN;
+			if(alerts & TWAI_ALERT_ABOVE_ERR_WARN)	errors |= L2_ERR_WARNING;
+			if(alerts & TWAI_ALERT_ERR_PASS)		errors |= L2_ERR_PASSIVE;
+
 			if(alerts & TWAI_ALERT_BUS_OFF)
 			{
 				_bus_off_count++;
 				twai_initiate_recovery();
+				errors |= L2_ERR_BUS_OFF;
 			}
 
 			if(alerts & TWAI_ALERT_BUS_RECOVERED)
 			{
 				twai_start();
+				errors |= L2_EVT_BUS_RECOVERED;
 			}
 
-			return;
+			return errors;
 		}
 
 		virtual bool IsRunning() const override

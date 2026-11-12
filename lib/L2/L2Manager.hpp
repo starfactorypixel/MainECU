@@ -17,6 +17,8 @@ class L2Manager
 		struct callbacks_t
 		{
 			void (*rx)(const L2Frame &frame, uint32_t time);
+
+			void (*error)(uint32_t errors, const L2Statistics &stats);	// errors — флаги L2_ERR_*
 		};
 		
 		L2Manager() = delete;
@@ -40,7 +42,9 @@ class L2Manager
 		{
 			if(_driver == nullptr) return;
 			
-			_driver->Poll();
+			// Ошибки драйвера + ошибки, отложенные в Send()
+			uint32_t errors = _driver->Poll();
+			errors |= __atomic_exchange_n(&_pending_errors, 0U, __ATOMIC_RELAXED);
 			
 			L2Frame frame = {};
 			for(uint16_t i = 0; i < RX_PER_TICK; ++i)
@@ -53,6 +57,13 @@ class L2Manager
 					_callbacks.rx(frame, _Millis());
 			}
 			
+			// После приёма — чтобы в снимке были актуальные счётчики
+			if(errors != L2_ERR_NONE && _callbacks.error != nullptr)
+			{
+				L2Statistics stats = GetStatistics();
+				_callbacks.error(errors, stats);
+			}
+			
 			return;
 		}
 		
@@ -62,6 +73,7 @@ class L2Manager
 			if(_driver == nullptr || _driver->Transmit(frame) == false)
 			{
 				_stats.tx_reject_count++;
+				__atomic_fetch_or(&_pending_errors, L2_ERR_TX_REJECT, __ATOMIC_RELAXED);
 				return false;
 			}
 #endif
@@ -103,4 +115,5 @@ class L2Manager
 		L2DriverInterface *_driver;
 		
 		L2Statistics _stats = {};
+		uint32_t _pending_errors = 0;		// Флаги L2_ERR_*, выставленные вне Processing(); доступ только через __atomic_*
 };

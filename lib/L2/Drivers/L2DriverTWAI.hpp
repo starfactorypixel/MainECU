@@ -11,15 +11,13 @@
 
 class L2DriverTWAI : public L2DriverInterface
 {
-	// TWAI_ALERT_RX_FIFO_OVERRUN есть не во всех версиях IDF
-#ifdef TWAI_ALERT_RX_FIFO_OVERRUN
-	static constexpr uint32_t ALERT_FIFO_OVERRUN = TWAI_ALERT_RX_FIFO_OVERRUN;
-#else
-	static constexpr uint32_t ALERT_FIFO_OVERRUN = 0;
-#endif
-
-	// TWAI_ALERT_AND_LOG не включать: печатает в лог прямо из ISR
-	static constexpr uint32_t ALERTS = TWAI_ALERT_TX_FAILED | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_RX_QUEUE_FULL | ALERT_FIFO_OVERRUN | TWAI_ALERT_ABOVE_ERR_WARN | TWAI_ALERT_ERR_PASS | TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED;
+	// Не включаем: TX_IDLE, TX_SUCCESS, RX_DATA (срабатывают на каждый кадр), ARB_LOST (нормальная работа CAN),
+	// RECOVERY_IN_PROGRESS (восстановление запускаем сами), TX_RETRIED (обход errata ESP32, на S3 не используется).
+	// TWAI_ALERT_AND_LOG не включать: печатает в лог прямо из ISR.
+	static constexpr uint32_t ALERTS =
+		TWAI_ALERT_TX_FAILED | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_RX_QUEUE_FULL | TWAI_ALERT_RX_FIFO_OVERRUN | 
+		TWAI_ALERT_ABOVE_ERR_WARN | TWAI_ALERT_BELOW_ERR_WARN | TWAI_ALERT_ERR_PASS | TWAI_ALERT_ERR_ACTIVE | 
+		TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED | TWAI_ALERT_PERIPH_RESET;
 
 	public:
 		
@@ -126,9 +124,12 @@ class L2DriverTWAI : public L2DriverInterface
 			if(alerts & TWAI_ALERT_TX_FAILED)		errors |= L2_ERR_TX_FAILED;
 			if(alerts & TWAI_ALERT_BUS_ERROR)		errors |= L2_ERR_BUS_ERROR;
 			if(alerts & TWAI_ALERT_RX_QUEUE_FULL)	errors |= L2_ERR_RX_QUEUE_OVERFLOW;
-			if(alerts & ALERT_FIFO_OVERRUN)			errors |= L2_ERR_RX_FIFO_OVERRUN;
+			if(alerts & TWAI_ALERT_RX_FIFO_OVERRUN)	errors |= L2_ERR_RX_FIFO_OVERRUN;
 			if(alerts & TWAI_ALERT_ABOVE_ERR_WARN)	errors |= L2_ERR_WARNING;
 			if(alerts & TWAI_ALERT_ERR_PASS)		errors |= L2_ERR_PASSIVE;
+			if(alerts & TWAI_ALERT_PERIPH_RESET)	errors |= L2_ERR_PERIPH_RESET;
+			if(alerts & TWAI_ALERT_BELOW_ERR_WARN)	errors |= L2_EVT_BELOW_WARNING;
+			if(alerts & TWAI_ALERT_ERR_ACTIVE)		errors |= L2_EVT_ERR_ACTIVE;
 
 			if(alerts & TWAI_ALERT_BUS_OFF)
 			{

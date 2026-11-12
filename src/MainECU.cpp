@@ -70,7 +70,7 @@ L3BlockInfoDB BlockInfoDB(&OnBlockCanSend, &OnBlockData, &OnBlockError);
 
 
 
-#if defined(USE_EMULATOR)
+#ifdef USE_EMULATOR
 #include <Emulator.h>
 void EmulatorOnUpdate(uint32_t id, uint8_t *bytes, uint8_t length, uint32_t time)
 {
@@ -275,9 +275,11 @@ esp_pm_configure(&pm_config);
     L2ManagerObj.SetDriver(L2TWAIObj);
 
 	L3ManagerObj.AddDriver(L3DashboardObj);
-	//L3ManagerObj.AddDriver(L3DriverBLEObj);
+#ifdef USE_BLUETOOTH
+	L3ManagerObj.AddDriver(L3DriverBLEObj);
+#endif
 
-#if defined(USE_EMULATOR)
+#ifdef USE_EMULATOR
 	for(auto &obj : emulator_objects)
 	{
 		emulator.RegDevice(*obj);
@@ -340,7 +342,7 @@ void loop()
 
 
 
-#if defined(USE_EMULATOR)
+#ifdef USE_EMULATOR
 	emulator.Processing(current_time);
 #endif
     
@@ -449,6 +451,9 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 			
 			SubsDB.Subscribe(packet->can_id, dev_type, true);
 			L2ManagerObj.Send(packet->can_id, packet->data, packet->length);
+
+			// Сомнительно. Скрипты запускаются только когда приходит от L3 команда в CAN.
+			ScriptLogic::ScriptObj.Trigger(packet->can_id, packet->data, packet->length);
 			
 			/*
             else

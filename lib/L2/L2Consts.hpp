@@ -1,11 +1,20 @@
 #pragma once
 #include <inttypes.h>
+#include <string.h>
 
 struct L2Frame
 {
 	uint32_t id;
 	uint8_t length;
-	uint8_t data[8];
+	union
+	{
+		structpack
+		{
+			uint8_t fId;
+			uint8_t data[7];
+		};
+		uint8_t raw[8];
+	};
 	bool extended;
 	bool rtr;
 };

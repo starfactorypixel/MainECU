@@ -91,7 +91,7 @@ class L2DriverTWAI : public L2DriverInterface
 			frame.rtr = msg.rtr;
 			frame.length = (msg.data_length_code > 8) ? 8 : msg.data_length_code;
 			if(frame.rtr == false)
-				memcpy(frame.data, msg.data, frame.length);
+				memcpy(frame.raw, msg.data, frame.length);
 			
 			return true;
 		}
@@ -106,7 +106,7 @@ class L2DriverTWAI : public L2DriverInterface
 			msg.rtr = frame.rtr;
 			msg.data_length_code = (frame.length > 8) ? 8 : frame.length;
 			if(frame.rtr == false)
-				memcpy(msg.data, frame.data, msg.data_length_code);
+				memcpy(msg.data, frame.raw, msg.data_length_code);
 			
 			return (twai_transmit(&msg, 0) == ESP_OK);
 		}

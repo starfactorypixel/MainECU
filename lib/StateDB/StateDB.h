@@ -25,7 +25,7 @@ class StateDB
 		StateDB() : _db{}, _update_mask{}
 		{}
 		
-		bool Set(uint16_t id, uint8_t *data, uint8_t length, uint32_t time)
+		bool Set(uint16_t id, const uint8_t *data, uint8_t length, uint32_t time)
 		{
 			if(id >= _max_id) return false;
 			if(length > _max_data) return false;

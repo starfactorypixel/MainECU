@@ -10,7 +10,8 @@
 #include "Config.h"
 
 #include <StateDB.h>
-#include <L2Wrapper.h>
+#include <L2Manager.hpp>
+#include <Drivers/L2DriverTWAI.hpp>
 #include "CANCore.h"
 #include <L3Manager.hpp>
 #include <Drivers/L3DriverDashboard.hpp>
@@ -24,14 +25,7 @@
 
 
 
-uint32_t global_error_count = 0;
 
-
-
-L2Wrapper L2;
-
-bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response);
-void L2OnError(int8_t code);
 
 
 
@@ -40,11 +34,21 @@ uint32_t MyMillis()
 	return (esp_timer_get_time() / 1000ULL);
 }
 
+
+
+void L2OnRx(const L2Frame &frame, uint32_t time);
+void L2OnError(uint32_t errors, const L2Statistics &stats);
+
+const L2Manager::callbacks_t l2_callbacks = {&L2OnRx, &L2OnError};
+L2Manager L2ManagerObj(l2_callbacks, &MyMillis);
+L2DriverTWAI L2TWAIObj;
+
+
+
 void L3OnOpen(L3Driver *driver);
 void L3OnClose(L3Driver *driver, L3DriverInterface::close_reason_t reason);
 void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length);
 void L3OnError(L3Driver *driver, L3C::error_t error);
-
 
 const L3Manager::callbacks_t l3_callbacks = {&L3OnOpen, &L3OnClose, &L3OnRx, &L3OnError};
 L3Manager L3ManagerObj(l3_callbacks, &MyMillis);		// убрать MyMillis
@@ -52,13 +56,19 @@ L3DriverDashboard L3DashboardObj;
 L3DriverBLE L3DriverBLEObj;
 
 
+
+StateDB DB;
+L3SubscriptionDB SubsDB;
+
+
+
 void OnBlockCanSend(uint16_t id, uint8_t *data, uint8_t length);
 void OnBlockData(uint8_t *data, uint8_t length);
 void OnBlockError(uint16_t id, L3BlockInfoDB::error_t code);
 
-StateDB DB;
-L3SubscriptionDB SubsDB;
 L3BlockInfoDB BlockInfoDB(&OnBlockCanSend, &OnBlockData, &OnBlockError);
+
+
 
 #if defined(USE_EMULATOR)
 #include <Emulator.h>
@@ -170,7 +180,7 @@ void OnBlockCanSend(uint16_t id, uint8_t *data, uint8_t length)
 {
 	//DEBUG_LOG_TOPIC("OnBlock", "CanTx: id: 0x%04X, fId: 0x%02X, len: %d\n", id, data[0], length);
 	
-	L2.Send(id, data, length);
+	L2ManagerObj.Send(id, data, length);
 	return;
 }
 
@@ -262,16 +272,10 @@ esp_pm_configure(&pm_config);
 	DEBUG_LOG_SIMPLE(";\n");
 	// ------------------------------------------------------------------------------------
 
-    
-    L2.RegCallback(L2OnRX, L2OnError);
-    L2.Init();
-
-    
+    L2ManagerObj.SetDriver(L2TWAIObj);
 
 	L3ManagerObj.AddDriver(L3DashboardObj);
 	//L3ManagerObj.AddDriver(L3DriverBLEObj);
-
-
 
 #if defined(USE_EMULATOR)
 	for(auto &obj : emulator_objects)
@@ -309,23 +313,9 @@ void loop()
 
 	//SPI::Loop(current_time);
 
-    L2.Processing(current_time);
+	L2ManagerObj.Processing();
 
 	L3ManagerObj.Processing();
-
-/*
-	static uint32_t wqeqqwe = 0;
-	if(millis() - wqeqqwe > 1000)
-	{
-		wqeqqwe = millis();
-		DEBUG_LOG_TOPIC("SUB_LIST", "");
-		SubsDB.Dump(L3_DEVTYPE_COMPUTER, [](uint16_t id)
-		{
-			DEBUG_LOG_SIMPLE("0x%04x, ", id);
-		});
-		DEBUG_LOG_SIMPLE("err: %d\n", global_error_count);
-	}
-*/
 
 	DB.Processing([](uint16_t id, StateDB::db_t &obj)
 	{
@@ -424,11 +414,11 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 						//L3.Send(dev, L3_REQTYPE_ERROR, id, data, sizeof(data));
 						
 						// Отправляем в CAN пакет запроса значения.
-						L2Wrapper::packet_v2_t can_packet;
-						can_packet.id = id;
-						can_packet.raw_data_len = 1;
-						can_packet.func_id = 0x11;
-						L2.Send(can_packet);
+						L2Frame l2packet = {};
+						l2packet.id = id;
+						l2packet.length = 1;
+						l2packet.fId = 0x11;
+						L2ManagerObj.Send(l2packet);
 					}
 				}
 				// Отписка
@@ -458,7 +448,7 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 			DEBUG_LOG_SIMPLE(";\n");
 			
 			SubsDB.Subscribe(packet->can_id, dev_type, true);
-			L2.Send((uint16_t)packet->can_id, (uint8_t *)packet->data, (uint8_t)packet->length);
+			L2ManagerObj.Send(packet->can_id, packet->data, packet->length);
 			
 			/*
             else
@@ -537,12 +527,8 @@ void L3OnConnect(L3DevType_t dev, int8_t code)
 
 
 // Приём пакета по протоколу L2.
-bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
+void L2OnRx(const L2Frame &frame, uint32_t time)
 {
-	bool result = false;
-
-	const uint32_t time = millis();
-	
 	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
 	//DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
 	//DEBUG_LOG_SIMPLE(";\n");
@@ -579,7 +565,7 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			*/
 		//}
 
-		BlockInfoDB.ISR_CanRx(request.id, request.data, request.length);
+		BlockInfoDB.ISR_CanRx(frame.id, frame.raw, frame.length);
 
 		static constexpr bool filter_table[256] = 
 		{
@@ -602,19 +588,20 @@ bool L2OnRX(L2Wrapper::packet_t &request, L2Wrapper::packet_t &response)
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false
 		};
 
-		if(filter_table[request.data[0]])
+		if(filter_table[frame.fId])
 		{
-			DB.Set(request.id, request.data, request.length, time);
+			DB.Set(frame.id, frame.raw, frame.length, time);
 		}
 	}
 	
-	return result;
+	return;
 }
 
 // Ошибка приёма пакета по протоколу L2.
-void L2OnError(int8_t code)
+//void L2OnError(int8_t code)
+void L2OnError(uint32_t errors, const L2Statistics &stats)
 {
-	DEBUG_LOG_TOPIC("L2_OnEr", "code: %d;\n", code);
+	DEBUG_LOG_TOPIC("L2_OnEr", "code: %d;\n", errors);
 	
 	return;
 }

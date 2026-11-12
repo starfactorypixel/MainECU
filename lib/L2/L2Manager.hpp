@@ -89,7 +89,7 @@ class L2Manager
 			frame.rtr = false;
 			frame.length = (length > 8) ? 8 : length;
 			if(frame.length > 0 && data != nullptr)
-				memcpy(frame.data, data, frame.length);
+				memcpy(frame.raw, data, frame.length);
 			
 			return Send(frame);
 		}

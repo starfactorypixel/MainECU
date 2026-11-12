@@ -1,7 +1,7 @@
 #pragma once
 #include <inttypes.h>
 
-extern L2Wrapper L2;
+extern L2Manager L2ManagerObj;
 extern StateDB DB;
 
 namespace ScriptLogic
@@ -47,7 +47,7 @@ namespace ScriptLogic
 			{
 				CanSendRaw11_t *obj = (CanSendRaw11_t *) bytes;
 
-				L2.Send(obj->can_id, obj->data, obj->length);
+				L2ManagerObj.Send(obj->can_id, obj->data, obj->length);
 
 				offset += sizeof(*obj);
 				break;
@@ -71,7 +71,7 @@ namespace ScriptLogic
 				if(obj->reg3 != 0x00)
 					data_offset += write_i32_fast(&data[data_offset], registers.RegisterGet(obj->reg3), obj->type);
 				
-				L2.Send(obj->can_id, data, obj->length);
+				L2ManagerObj.Send(obj->can_id, data, obj->length);
 				
 				offset += sizeof(*obj);
 				break;

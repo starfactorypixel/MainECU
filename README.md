@@ -16,6 +16,7 @@ upload_port = COM4
 build_flags = 
 ;	-D USE_EMULATOR
 ;	-D NO_CAN_SEND
+;	-D USE_BLUETOOTH
 ```
 
 Если файла нет, проект соберётся с настройками по умолчанию, а порт PlatformIO попытается определить автоматически.

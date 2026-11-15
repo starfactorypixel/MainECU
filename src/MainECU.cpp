@@ -451,9 +451,6 @@ void L3OnRx(L3Driver *driver, const uint8_t *msg, uint16_t length)
 			
 			SubsDB.Subscribe(packet->can_id, dev_type, true);
 			L2ManagerObj.Send(packet->can_id, packet->data, packet->length);
-
-			// Сомнительно. Скрипты запускаются только когда приходит от L3 команда в CAN.
-			ScriptLogic::ScriptObj.Trigger(packet->can_id, packet->data, packet->length);
 			
 			/*
             else
@@ -534,8 +531,8 @@ void L3OnConnect(L3DevType_t dev, int8_t code)
 // Приём пакета по протоколу L2.
 void L2OnRx(const L2Frame &frame, uint32_t time)
 {
-	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", request.id, request.length);
-	//DEBUG_LOG_ARRAY_HEX(nullptr, request.data, request.length);
+	//DEBUG_LOG_TOPIC("L2_OnRX", "addr: 0x%04X, len: %d, data: ", frame.id, frame.length);
+	//DEBUG_LOG_ARRAY_HEX(nullptr, frame.raw, frame.length);
 	//DEBUG_LOG_SIMPLE(";\n");
 
 	//#warning Remove this after debug !!!1
@@ -589,7 +586,7 @@ void L2OnRx(const L2Frame &frame, uint32_t time)
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
-			false, false, false, false, false, false,  true, false, false, false, false, false, false, false, false, false, 
+			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, 
 			false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false
 		};
 

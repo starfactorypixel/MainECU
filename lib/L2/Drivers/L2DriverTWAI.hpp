@@ -101,6 +101,7 @@ class L2DriverTWAI : public L2DriverInterface
 			if(_installed == false) return false;
 
 			twai_message_t msg = {};
+			msg.self = 1;		// Самоприём отправленных сообщений
 			msg.identifier = frame.id;
 			msg.extd = frame.extended;
 			msg.rtr = frame.rtr;

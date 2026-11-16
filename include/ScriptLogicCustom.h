@@ -39,13 +39,13 @@ namespace ScriptLogic
 	
 	void TestOpcode(DrakeScriptRegisters &registers, const uint8_t *bytes, uint16_t &offset)
 	{
-		opcode_idx_t opcode = (opcode_idx_t)bytes[0];
-
+		auto opcode = (const opcode_idx_t)bytes[0];
+		
 		switch(opcode)
 		{
 			case 0xA0:
 			{
-				CanSendRaw11_t *obj = (CanSendRaw11_t *) bytes;
+				auto obj = (const CanSendRaw11_t *) bytes;
 
 				L2ManagerObj.Send(obj->can_id, obj->data, obj->length);
 
@@ -55,7 +55,7 @@ namespace ScriptLogic
 			
 			case 0xA1:
 			{
-				CanSendRegVal11_t *obj = (CanSendRegVal11_t *) bytes;
+				auto obj = (const CanSendRegVal11_t *) bytes;
 				
 				uint8_t data[8] = {0x00};
 				uint8_t data_offset = 0;
@@ -79,7 +79,7 @@ namespace ScriptLogic
 
 			case 0xA5:
 			{
-				StateReadReg_t *obj = (StateReadReg_t *) bytes;
+				auto obj = (const StateReadReg_t *) bytes;
 				
 				StateDB::db_t state = {};
 				if(DB.Get(obj->db_id, state) == true)

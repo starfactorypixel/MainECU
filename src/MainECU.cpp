@@ -322,7 +322,7 @@ void loop()
 	DB.Processing([](uint16_t id, StateDB::db_t &obj)
 	{
 		// Выполняем скрипты для id
-		ScriptLogic::ScriptObj.Trigger(id, obj.data, obj.length);
+		//ScriptLogic::ScriptObj.Trigger(id, obj.data, obj.length);
 		
 		// Получаем подписанные устройства для id и отправляем данные
 		uint8_t subs = SubsDB.GetDevices(id);
@@ -568,6 +568,9 @@ void L2OnRx(const L2Frame &frame, uint32_t time)
 		//}
 
 		BlockInfoDB.ISR_CanRx(frame.id, frame.raw, frame.length);
+
+		// Выполняем скрипты для id
+		ScriptLogic::ScriptObj.Trigger(frame.id, frame.raw, frame.length);
 
 		static constexpr bool filter_table[256] = 
 		{

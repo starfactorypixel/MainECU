@@ -77,20 +77,22 @@ namespace ScriptProto
 	struct __attribute__((packed)) req_write_t			{ uint8_t fid; uint8_t cmd; uint16_t id; uint16_t offset; uint8_t data[]; };	// data — до конца сообщения
 	struct __attribute__((packed)) req_write_end_t		{ uint8_t fid; uint8_t cmd; uint16_t id; uint32_t crc32; };
 	struct __attribute__((packed)) req_read_t			{ uint8_t fid; uint8_t cmd; uint16_t id; uint16_t offset; uint16_t max_len; };
-	struct __attribute__((packed)) req_enable_t		{ uint8_t fid; uint8_t cmd; uint16_t id; uint8_t on; };
+	struct __attribute__((packed)) req_enable_t			{ uint8_t fid; uint8_t cmd; uint16_t id; uint8_t on; };
 	struct __attribute__((packed)) req_list_t			{ uint8_t fid; uint8_t cmd; uint16_t from; };
 
 	// ---- Ответы -----------------------------------------------------------------
+	// state — это ScriptMapObj.GetState(id) (фактическое состояние в runtime)
+	// flags — это intent пользователя (галочка «вкл» из disabled[])
 
-	struct __attribute__((packed)) resp_head_t			{ uint8_t fid; uint8_t cmd; int8_t status; };												// BAD_REQUEST
-	struct __attribute__((packed)) resp_id_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; };								// DELETE, WRITE_END, ошибки
-	struct __attribute__((packed)) resp_info_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint16_t length; uint32_t crc32; uint8_t flags; };
+	struct __attribute__((packed)) resp_head_t			{ uint8_t fid; uint8_t cmd; int8_t status; };									// BAD_REQUEST
+	struct __attribute__((packed)) resp_id_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; };						// DELETE, WRITE_END, ошибки
+	struct __attribute__((packed)) resp_info_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint16_t length; uint32_t crc32; uint8_t flags; int8_t state; };
 	struct __attribute__((packed)) resp_write_begin_t	{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint16_t max_chunk; };
-	struct __attribute__((packed)) resp_write_t		{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint16_t offset; };
+	struct __attribute__((packed)) resp_write_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint16_t offset; };
 	struct __attribute__((packed)) resp_read_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint16_t offset; uint8_t data[]; };
 	struct __attribute__((packed)) resp_reload_t		{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t count; };
-	struct __attribute__((packed)) resp_enable_t		{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint8_t flags; };
-	struct __attribute__((packed)) list_entry_t		{ uint16_t id; uint16_t length; uint8_t flags; };
+	struct __attribute__((packed)) resp_enable_t		{ uint8_t fid; uint8_t cmd; int8_t status; uint16_t id; uint8_t flags; int8_t state; };
+	struct __attribute__((packed)) list_entry_t			{ uint16_t id; uint16_t length; uint8_t flags; int8_t state; };
 	struct __attribute__((packed)) resp_list_t			{ uint8_t fid; uint8_t cmd; int8_t status; uint8_t reload_needed; uint16_t next; list_entry_t entries[]; };
 
 	// Сколько данных помещается в одно сообщение (поле данных в sizeof не входит)
@@ -180,6 +182,7 @@ namespace ScriptProto
 				resp.length = length;
 				resp.crc32 = esp_crc32_le(0, script, length);
 				resp.flags = Flags(req->id);
+				resp.state = ScriptMapObj.GetState(req->id);
 				Answer(tx, tx_len, resp);
 				break;
 			}
@@ -352,6 +355,7 @@ namespace ScriptProto
 				resp.status = ST_OK;
 				resp.id = req->id;
 				resp.flags = Flags(req->id);
+				resp.state = ScriptMapObj.GetState(req->id);
 				Answer(tx, tx_len, resp);
 				break;
 			}
@@ -383,6 +387,7 @@ namespace ScriptProto
 					resp->entries[count].id = id;
 					resp->entries[count].length = length;
 					resp->entries[count].flags = Flags(id);
+					resp->entries[count].state = ScriptMapObj.GetState(id);
 					count++;
 				}
 
